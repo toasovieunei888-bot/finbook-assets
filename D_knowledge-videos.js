@@ -1,4 +1,4 @@
-/*! D_knowledge-videos.js  知識シリーズ動画（会員ホーム組み込み版）v2（戻るスワイプ対応）
+/*! D_knowledge-videos.js  知識シリーズ動画（会員ホーム組み込み版）v3（サムネ対応）
     置き場所: toasovieunei888-bot/finbook-assets 直下
     読み込み: 会員ホームEmbedの最下部（A_finbook-home.js より後）
     動画を公開する方法:
@@ -6,6 +6,9 @@
         例) "1182236319"
         例) "https://vimeo.com/1182236319/ab12cd34ef"   ← 限定公開の動画はこの形（末尾のハッシュ込み）で貼る
       空（""）のままの回は「準備中」で表示される
+    サムネの入れ方:
+      同じシリーズの th:[ ] の同じ番目に、Webflowにアップした画像のURLを入れる（16:9）
+      th の1番目の画像が、知識タブのシリーズカードの表紙にもなる
       GitHubでコミット → purge URL を開く → 会員ホームを再読み込み
     purge URL:
       https://purge.jsdelivr.net/gh/toasovieunei888-bot/finbook-assets@main/D_knowledge-videos.js
@@ -25,42 +28,59 @@
       k: 'okane', n: 'お金の歴史', e: '🪙', c: ['#FFECC0', '#FFDA85'],
       d: '紙やデータがなぜお金として使えるのか。身近な疑問から順番に見ていきます。',
       t: ['お金ってなに？', '紙なのにお金？', 'お金は誰が作ってるの？', '銀行に預けたお金はどこにいく？', 'なぜ物の値段は上がるの？', '100万円の価値はずっと同じ？', '貯金してるのにお金が減る？', '電子マネーって本当に“お金”なの？', 'キャッシュレスで払ったお金はどこにいく？', '金利ってなに？', '投資するとお金が増えるのはなぜ？', 'お金持ちは何にお金を使ってる？'],
-      v: ['', '', '', '', '', '', '', '', '', '', '', '']
+      th: [
+        'https://cdn.prod.website-files.com/69bcd664c814f802dfc1f9bc/6aaa0eac01ac3c9c1ef9ab70_%E3%81%8A%E3%81%8B%E3%81%AD%E3%82%B5%E3%83%A0%E3%83%8D01.jpg',
+        'https://cdn.prod.website-files.com/69bcd664c814f802dfc1f9bc/6aaa0eb8eb710bc05c247ba9_ChatGPT%20Image%202026%E5%B9%B49%E6%9C%8816%E6%97%A5%2011_14_43_0.png',
+        'https://cdn.prod.website-files.com/69bcd664c814f802dfc1f9bc/6aaa0eb8da088f2e63919060_ChatGPT%20Image%202026%E5%B9%B49%E6%9C%8816%E6%97%A5%2011_14_10_0.png',
+        '', '', '', '', '', '', '', '', ''
+      ],
+      v: [
+        'https://vimeo.com/1225483754/81b49ed9a1',
+        'https://vimeo.com/1225484649/53b9abbd6b',
+        'https://vimeo.com/1225501981/2fe8a1f64b',
+        '', '', '', '', '', '', '', '', ''
+      ]
     },
     {
       k: 'crypto', n: '暗号通貨', e: '₿', c: ['#FFE4BE', '#FFCC85'],
       d: '暗号通貨の仕組みと、だまされないための見方を学びます。',
       t: ['暗号通貨ってなに？', 'ただのデータなのに、なんで価値があるの？', 'ビットコインは誰が作ったの？', '暗号通貨はどこに保存されてるの？', 'ブロックチェーンってなに？', 'なんで暗号通貨の値段は上がったり下がったりするの？', 'ビットコインはどうやって増えるの？', '暗号通貨で買い物ってできるの？', 'NFTって暗号通貨と何が違うの？', '暗号通貨は安全なの？', '暗号通貨で騙されないためには？', '暗号通貨はこれから“お金”になるの？'],
+      th: ['', '', '', '', '', '', '', '', '', '', '', ''],
       v: ['', '', '', '', '', '', '', '', '', '', '', '']
     },
     {
       k: 'ai', n: 'AIの誕生と進化', e: '🤖', c: ['#E5DAF6', '#CBB3EE'],
       d: 'AIがどう生まれ、どうやって賢くなってきたのかをたどります。',
       t: ['AIってそもそもなに？', 'AIはいつ生まれたの？', '最初のAIは何ができたの？', 'AIはどうやって賢くなったの？', '機械学習ってなに？', 'ディープラーニングで何が変わったの？', 'AIはどうやって画像を見分けてるの？', 'ChatGPTはどうやって生まれたの？', '生成AIって今までのAIと何が違うの？', 'AIは人間の仕事を奪うの？', 'AIは人間より賢くなるの？', 'AIの進化はこれからどこまで進む？'],
+      th: ['', '', '', '', '', '', '', '', '', '', '', ''],
       v: ['', '', '', '', '', '', '', '', '', '', '', '']
     },
     {
       k: 'jiko', n: '自己啓発', e: '🌱', c: ['#C6EBDB', '#95D8BC'],
       d: '行動・習慣・自信など、自分を動かすための考え方をまとめています。',
       t: ['自分を変えるには何から始めればいい？', 'やる気がなくても行動できる人の違い', '目標を立てても続かないのはなぜ？', '習慣を変えると人生は変わる？', '失敗を怖がらない人は何を考えてる？', '自信ってどうやったら身につくの？', '他人と比べてしまうのはなぜ？', '時間がない人ほど見直すべきこと', '環境を変えると自分も変わる？', '人間関係で疲れないためには？', '成功する人は何を優先してる？', '自分らしい人生ってどうやって作るの？'],
+      th: ['', '', '', '', '', '', '', '', '', '', '', ''],
       v: ['', '', '', '', '', '', '', '', '', '', '', '']
     },
     {
       k: 'sagi', n: '詐欺予防', e: '🛡', c: ['#FAD5CF', '#F2A99F'],
       d: 'お金の詐欺を見抜くポイントと、払ってしまった時の動き方です。',
       t: ['詐欺ってどうやって見抜けばいい？', '「今すぐ決めて」が危険な理由', 'うますぎる儲け話はどこを疑う？', '有名人や大企業の名前が出ても信用していい？', 'SNSの投資話はどう確認すればいい？', 'LINEに誘導されたら何を警戒する？', '「絶対儲かる」が存在しない理由', '詐欺師がよく使う“信用させる言葉”とは？', '契約する前に絶対見るべき3つのポイント', '断りづらい時はどうすればいい？', 'もしお金を払ってしまったら何をする？', '詐欺に遭わない人が必ずやっている習慣'],
+      th: ['', '', '', '', '', '', '', '', '', '', '', ''],
       v: ['', '', '', '', '', '', '', '', '', '', '', '']
     },
     {
       k: 'kenko', n: '健康がもたらす経済の変化', e: '🍎', c: ['#C7DFF7', '#9CC3EC'],
       d: '健康が家計・会社・国のお金にどうつながっているかを見ていきます。',
       t: ['健康になるとお金はどう変わる？', '病気になると実際いくらお金がかかる？', '睡眠不足は収入にも影響する？', '運動する人は仕事の生産性が高い？', '食生活が悪いと将来の支出は増える？', 'メンタルの不調は経済にどんな影響を与える？', '健康な人が増えると会社はどう変わる？', '医療費が増えると国の経済はどうなる？', '高齢化と健康寿命はなぜ重要なの？', '予防にお金を使う方が得なの？', '健康への投資はどこまで回収できる？', '健康な社会は本当に豊かになるの？'],
+      th: ['', '', '', '', '', '', '', '', '', '', '', ''],
       v: ['', '', '', '', '', '', '', '', '', '', '', '']
     },
     {
       k: 'zei', n: '学校じゃ聞けない【税】について', e: '🧾', c: ['#EDE6D6', '#D8CBAE'],
       d: '税金の種類と決まり方を、会社員と個人事業主の目線で整理します。',
       t: ['税金ってそもそも何のために払うの？', '私たちは年間どれくらい税金を払ってる？', '消費税って誰が払って、誰が納めてるの？', '所得税はどうやって金額が決まるの？', '住民税ってなんで後から請求されるの？', '会社員は給料から何を引かれているの？', '個人事業主になると税金はどう変わる？', '経費ってどこまで経費にできるの？', '節税と脱税って何が違うの？', 'ふるさと納税って本当に得なの？', '税金が高くなると経済はどう変わる？', '税金を知ってる人と知らない人で何が変わる？'],
+      th: ['', '', '', '', '', '', '', '', '', '', '', ''],
       v: ['', '', '', '', '', '', '', '', '', '', '', '']
     }
   ];
@@ -122,6 +142,16 @@
   var css = ''
     + '#fbapp .kv-card{cursor:pointer}'
     + '#fbapp .kv-card .th{font-size:40px}'
+    + '#fbapp .lg.kv-card .th.pic{height:auto;aspect-ratio:16/9;padding:0;background:#EDE3CB}'
+    + '#fbapp .lg.kv-card .th.pic img{width:100%;height:100%;border-radius:0;border:0;box-shadow:none;object-fit:cover}'
+    + '#fbapp .kv-row .thumb{position:relative;width:112px;aspect-ratio:16/9;flex-shrink:0;border-radius:10px;overflow:hidden;border:2px solid #fff;box-shadow:0 2px 0 rgba(120,90,40,.18);background:#EDE3CB}'
+    + '#fbapp .kv-row .thumb img{width:100%;height:100%;object-fit:cover;display:block}'
+    + '#fbapp .kv-row .thumb .no{position:absolute;left:4px;top:4px;width:22px;height:22px;font-size:10px;box-shadow:0 1px 2px rgba(0,0,0,.25)}'
+    + '#fbapp .kv-row.lock .thumb{filter:grayscale(.6);opacity:.75}'
+    + '#fbapp .kv-row .thumb .ph{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:24px}'
+    + '#fbapp .kv-row .tx{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px}'
+    + '#fbapp .kv-row .mk2{font-size:11.5px;font-weight:800;color:var(--leafd)}'
+    + '#fbapp .kv-row.lock .mk2{color:#B8AA88}'
     + '#fbapp .kv-card .ds2{display:block;font-size:11px;font-weight:800;color:var(--leafd);margin-top:1px}'
     + '#fbapp .kv-hero{display:flex;align-items:center;gap:13px;background:var(--card);border:2px solid var(--bd);border-radius:20px;box-shadow:var(--sh);padding:14px 15px;margin-bottom:14px}'
     + '#fbapp .kv-hero .ic{width:58px;height:58px;border-radius:18px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:30px;border:2px solid #fff;box-shadow:0 2px 5px rgba(0,0,0,.1)}'
@@ -290,7 +320,9 @@
       var oc = openCount(s), wc = watchedCount(s), soon = oc === 0;
       return '<a class="lg kv-card' + (soon ? ' soon' : '') + '" href="#" data-kvs="' + si + '">'
         + (soon ? '<span class="lockb">🔒 準備中</span>' : '')
-        + '<span class="th" style="background:linear-gradient(135deg,' + s.c[0] + ',' + s.c[1] + ')">' + s.e + '</span>'
+        + (s.th && s.th[0]
+          ? '<span class="th pic"><img src="' + esc(s.th[0]) + '" alt="" loading="lazy"></span>'
+          : '<span class="th" style="background:linear-gradient(135deg,' + s.c[0] + ',' + s.c[1] + ')">' + s.e + '</span>')
         + '<span class="bd"><span class="nm">' + esc(s.n) + '</span>'
         + '<span class="ds">' + (soon ? '全' + s.t.length + '本・近日公開' : '📺 ' + oc + '/' + s.t.length + '本 公開中') + '</span>'
         + (wc > 0 ? '<span class="ds2">✓ ' + wc + '本 視聴済み</span>' : '')
@@ -318,9 +350,13 @@
     $('kvsList').innerHTML = s.t.map(function (title, i) {
       var open = isOpen(s, i), done = open && isWatched(s, i);
       var cls = open ? (done ? ' done' : '') : ' lock';
-      var mark = open ? (done ? '✓ 視聴済み' : '▶') : '🔒 準備中';
+      var mark2 = open ? (done ? '✓ 視聴済み' : '▶ 見る') : '🔒 準備中';
+      var img = s.th && s.th[i]
+        ? '<img src="' + esc(s.th[i]) + '" alt="" loading="lazy">'
+        : '<span class="ph" style="background:linear-gradient(135deg,' + s.c[0] + ',' + s.c[1] + ')">' + s.e + '</span>';
       return '<button class="kv-row' + cls + '" data-kvi="' + i + '"' + (open ? '' : ' disabled') + '>'
-        + '<span class="no">' + pad(i + 1) + '</span><span class="tt">' + esc(title) + '</span><span class="mk">' + mark + '</span></button>';
+        + '<span class="thumb">' + img + '<span class="no">' + pad(i + 1) + '</span></span>'
+        + '<span class="tx"><span class="tt">' + esc(title) + '</span><span class="mk2">' + mark2 + '</span></span></button>';
     }).join('');
   }
   function openSeries(si) { curS = si; renderSeries(); nav('kseries', 'push'); }
