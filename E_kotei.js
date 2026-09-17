@@ -1,4 +1,4 @@
-/*! E_kotei.js  固定費削減（会員ホーム組み込み版）v2
+/*! E_kotei.js  固定費削減（会員ホーム組み込み版）v3（キャラ画像対応）
     置き場所: toasovieunei888-bot/finbook-assets 直下
     読み込み: 会員ホームEmbedの最下部（D_knowledge-videos.js より後）
     動画を入れる方法:
@@ -16,6 +16,7 @@
 
   /* ====== 設定（ここだけ触ればOK） ====== */
   var LINE = 'https://lin.ee/vTbbZPM';
+  var ICON = 'https://cdn.prod.website-files.com/69bcd664c814f802dfc1f9bc/6a70262adc811fd00ef5f195_10003.png'; // 固定費削減のキャラ画像
   var ITEMS = [
     {
       n: 'スマホ代', d: 'スマホ代を無料・格安にしたい方', e: '📱', c: ['#CFEDFB', '#9BD5F3'],
@@ -61,6 +62,8 @@
   /* ====== CSS ====== */
   var css = ''
     + '#fbapp .rp-hero.kt::after,#fbapp .rp-hero.kt .ic{background:linear-gradient(135deg,#CFEDFB,#9BD5F3)}'
+    + '#fbapp .rp-hero.kt .ic{overflow:hidden;padding:0}'
+    + '#fbapp .rp-hero.kt .ic img{width:100%;height:100%;object-fit:contain;padding:3px;background:#fff;display:block}'
     + '#fbapp .kt-item{width:100%;font-family:inherit;color:var(--ink);text-align:left;cursor:pointer}'
     + '#fbapp .kt-item .ic.pic{width:104px;height:auto;aspect-ratio:16/9;border-radius:12px;overflow:hidden;padding:0}'
     + '#fbapp .kt-item .ic.pic img{width:100%;height:100%;object-fit:cover;display:block}'
@@ -91,7 +94,7 @@
   holder.innerHTML = ''
     + '<section class="screen" id="scr-kotei">'
     + '<div class="rp-head"><button class="rp-back" id="ktBack">‹ もどる</button><span class="t">固定費削減</span></div>'
-    + '<div class="rp-hero kt"><div class="ic">🐷</div><h3>固定費削減</h3>'
+    + '<div class="rp-hero kt"><div class="ic"><img src="' + ICON + '" alt=""></div><h3>固定費削減</h3>'
     + '<p>毎月かならず出ていく支払いを見直す講座です。<br>気になるものをタップすると、説明動画が見られます。</p>'
     + '<div class="tags">' + ITEMS.map(function (it) { return '<span>' + esc(it.n) + '</span>'; }).join('') + '</div></div>'
     + '<div id="ktList"></div>'
