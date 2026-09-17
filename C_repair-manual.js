@@ -1,8 +1,8 @@
-/*! C_repair-manual.js  リペアマニュアル 会員ホーム組み込み版 v24
+/*! C_repair-manual.js  リペアマニュアル 会員ホーム組み込み版 v25（タブ名：リペアの仕方）
     置き場所: toasovieunei888-bot/finbook-assets 直下
     読み込み: Webflow の新規Embed 1個（webflow-embed-snippet.txt を参照）
     仕様:
-      - #scr-repair の .subtabs に「📗 マニュアル」タブを自動追加
+      - #scr-repair の .subtabs に「🧵 リペアの仕方」タブを自動追加
       - ペインは id="rp-manual" class="rp-pane" で #rp-tool の隣に生成
       - 他タブを押したときの閉じる処理は A_finbook-home.js が担当（触らんでよい）
       - CSSは全部 #rp-manual の中。.tool は .rmtool に改名済み（会員ホーム側と衝突するため）
@@ -459,7 +459,7 @@ function mount(tries){
  var tab=document.createElement('button');
  tab.className='subtab rp-tab';
  tab.setAttribute('data-pane','manual');
- tab.textContent='📗 マニュアル';
+ tab.textContent='🧵 リペアの仕方';
  row.appendChild(tab);
 
  /* ペインを追加 */
