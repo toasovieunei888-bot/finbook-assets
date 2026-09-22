@@ -27,12 +27,20 @@
     {
       k: 'okane', n: 'お金の歴史', e: '🪙', c: ['#FFECC0', '#FFDA85'],
       d: '紙やデータがなぜお金として使えるのか。身近な疑問から順番に見ていきます。',
-      t: ['お金ってなに？', '紙なのにお金？', 'お金は誰が作ってるの？', '銀行に預けたお金はどこにいく？', 'なぜ物の値段は上がるの？', '100万円の価値はずっと同じ？', '貯金してるのにお金が減る？', '電子マネーって本当に“お金”なの？', 'キャッシュレスで払ったお金はどこにいく？', '金利ってなに？', '投資するとお金が増えるのはなぜ？', 'お金持ちは何にお金を使ってる？'],
+      t: ['お金ってなに？', '紙なのにお金？', 'お金は誰が作ってるの？', '銀行に預けたお金はどこにいく？', 'なぜ物の値段は上がるの？', '100万円の価値はずっと同じ？', '貯金してるのにお金が減る？', '電子マネーって本当に“お金”なの？', 'キャッシュレスで払ったお金はどこにいく？', '借金って本当に悪いの？', '投資するとお金が増えるのはなぜ？', 'お金持ちは何にお金を使ってる？'],
       th: [
         'https://cdn.prod.website-files.com/69bcd664c814f802dfc1f9bc/6aaa0eac01ac3c9c1ef9ab70_%E3%81%8A%E3%81%8B%E3%81%AD%E3%82%B5%E3%83%A0%E3%83%8D01.jpg',
         'https://cdn.prod.website-files.com/69bcd664c814f802dfc1f9bc/6aaa0eb8eb710bc05c247ba9_ChatGPT%20Image%202026%E5%B9%B49%E6%9C%8816%E6%97%A5%2011_14_43_0.png',
         'https://cdn.prod.website-files.com/69bcd664c814f802dfc1f9bc/6aaa0eb8da088f2e63919060_ChatGPT%20Image%202026%E5%B9%B49%E6%9C%8816%E6%97%A5%2011_14_10_0.png',
-        '', '', '', '', '', '', '', '', ''
+        'https://cdn.prod.website-files.com/69bcd664c814f802dfc1f9bc/6ab1ea95d3590a5cd08957bd_%E3%81%8A%E9%87%9104Rk.png', 
+        'https://cdn.prod.website-files.com/69bcd664c814f802dfc1f9bc/6ab1f564d3590a5cd08c6bce_%E3%81%8A%E9%87%9105Rk.jpg', 
+        'https://cdn.prod.website-files.com/69bcd664c814f802dfc1f9bc/6ab1f564e2d9224392baf1f1_%E3%81%8A%E9%87%9106Rk.jpg', 
+        'https://cdn.prod.website-files.com/69bcd664c814f802dfc1f9bc/6ab1f5648162b3f4ca39eccb_%E3%81%8A%E9%87%9107Rk.jpg', 
+        'https://cdn.prod.website-files.com/69bcd664c814f802dfc1f9bc/6ab1f564e4846320882da707_%E3%81%8A%E9%87%9108Rk.jpg', 
+        'https://cdn.prod.website-files.com/69bcd664c814f802dfc1f9bc/6ab1f5640cfb153783374d17_%E3%81%8A%E9%87%9109Rk.jpg', 
+        'https://cdn.prod.website-files.com/69bcd664c814f802dfc1f9bc/6ab1f564f750c7e8a871973a_%E3%81%8A%E9%87%9110Rk.jpg', 
+        'https://cdn.prod.website-files.com/69bcd664c814f802dfc1f9bc/6ab1f564ba101ca2306591d3_%E3%81%8A%E9%87%9111Rk.jpg', 
+        'https://cdn.prod.website-files.com/69bcd664c814f802dfc1f9bc/6ab1f5648aabc788f04cf816_%E3%81%8A%E9%87%9112Rk.jpg'
       ],
       v: [
         'https://vimeo.com/1225483754/81b49ed9a1',
