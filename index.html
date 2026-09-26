@@ -1,0 +1,1412 @@
+<!DOCTYPE html>
+<html lang="ja" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>エコオク 入札指示</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/firebase@9.23.0/compat/firebase-app.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/firebase@9.23.0/compat/firebase-database.min.js"></script>
+<style>
+:root{
+  --paper:#FBF2E4; --panel:#FFFDF9; --ink:#14100B; --ink2:#5A5147;
+  --rule:#D9C9AE; --rule2:#F0E6D4;
+  --ai:#0E6BA8; --ai-soft:#DCEEFA;
+  --go:#0B7A4B; --go-soft:#D3F0DF;
+  --hold:#C97A00; --hold-soft:#FEEBC8;
+  --ng:#C42B2B; --ng-soft:#FBDEDA;
+  --vi:#6A4C93; --vi-soft:#EBE2F7;
+  --sh:0 2px 0 rgba(20,16,11,.06), 0 8px 20px rgba(20,16,11,.07);
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --paper:#15120E; --panel:#221D17; --ink:#FBF6EE; --ink2:#BCB0A0;
+  --rule:#463D31; --rule2:#2C251D; --ai:#7FC4F0; --ai-soft:#122C3E;
+  --go:#5EE0A0; --go-soft:#0F3323; --hold:#FFC048; --hold-soft:#3A2C0E;
+  --ng:#FF8F82; --ng-soft:#3E1E1B; --vi:#C4A6F0; --vi-soft:#2A1F3D;
+  --sh:0 2px 0 rgba(0,0,0,.3), 0 8px 20px rgba(0,0,0,.35);}}
+:root[data-theme="dark"]{
+  --paper:#15120E; --panel:#221D17; --ink:#FBF6EE; --ink2:#BCB0A0;
+  --rule:#463D31; --rule2:#2C251D; --ai:#7FC4F0; --ai-soft:#122C3E;
+  --go:#5EE0A0; --go-soft:#0F3323; --hold:#FFC048; --hold-soft:#3A2C0E;
+  --ng:#FF8F82; --ng-soft:#3E1E1B; --vi:#C4A6F0; --vi-soft:#2A1F3D;
+  --sh:0 2px 0 rgba(0,0,0,.3), 0 8px 20px rgba(0,0,0,.35);}
+*,*::before,*::after{box-sizing:inherit}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;color:var(--ink);
+  background:var(--paper);
+  background-image:
+    radial-gradient(900px 420px at 8% -8%, var(--ai-soft) 0%, transparent 62%),
+    radial-gradient(760px 380px at 96% 4%, var(--vi-soft) 0%, transparent 60%),
+    radial-gradient(700px 340px at 50% 104%, var(--go-soft) 0%, transparent 62%);
+  background-attachment:fixed;
+  font-family:"Zen Kaku Gothic New","Hiragino Kaku Gothic ProN","Yu Gothic","Noto Sans JP",system-ui,sans-serif;
+  font-size:16px;line-height:1.5;font-weight:500;-webkit-text-size-adjust:100%}
+.num{font-variant-numeric:tabular-nums;font-feature-settings:"tnum"}
+
+header{position:sticky;top:env(safe-area-inset-top,0px);z-index:30;
+  background:var(--panel);border-bottom:2px solid var(--rule);box-shadow:0 4px 14px rgba(20,16,11,.08)}
+header::before{content:"";display:block;height:6px;
+  background:linear-gradient(90deg,var(--ai),var(--vi),var(--go),var(--hold))}
+.bar{max-width:1240px;margin:0 auto;padding:8px 14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.bar h1{margin:0;font-size:18px;font-weight:800;letter-spacing:.01em;white-space:nowrap;color:var(--ai)}
+.bar .sub{font-size:12.5px;color:var(--ink2);font-weight:500}
+.spacer{flex:1}
+.chip{font:inherit;font-size:13.5px;font-weight:600;cursor:pointer;white-space:nowrap;
+  padding:6px 14px;border-radius:999px;border:1.5px solid var(--rule);background:var(--panel);color:var(--ink2)}
+.chip[aria-pressed="true"]{background:var(--ai);border-color:var(--ai);color:#fff;font-weight:500}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.whoami{display:inline-flex;gap:7px;align-items:center;padding:4px 10px;border-radius:999px;
+  background:var(--go-soft);border:2px solid var(--go)}
+.whoami label{font-size:11.5px;font-weight:800;color:var(--go);white-space:nowrap}
+.whoami input{font:inherit;font-size:14px;font-weight:800;width:110px;padding:3px 8px;
+  border:2px solid var(--go);border-radius:999px;background:var(--panel);color:var(--ink)}
+.whoami input:focus{outline:none;border-color:var(--ai)}
+.conn{font-size:11.5px;font-weight:800;padding:3px 10px;border-radius:999px;white-space:nowrap}
+.conn.ok{background:var(--go);color:#fff}
+.conn.ng{background:var(--ng-soft);color:var(--ng)}
+
+main{max-width:1240px;margin:0 auto;padding:14px 14px 90px}
+
+/* ── 投入エリア ────────────────── */
+.drop{
+  border:3px dashed var(--ai);border-radius:16px;
+  background:linear-gradient(180deg,var(--ai-soft),var(--panel));
+  padding:30px 18px;text-align:center;cursor:pointer;box-shadow:var(--sh)}
+.drop.on{border-color:var(--go);border-style:solid;background:var(--go-soft)}
+.drop h2{margin:0 0 8px;font-size:20px;font-weight:800;color:var(--ai)}
+.drop p{margin:0;font-size:13.5px;font-weight:500;color:var(--ink2);line-height:1.75}
+.drop kbd{font:inherit;font-size:11px;padding:1px 6px;border-radius:3px;border:1px solid var(--rule);background:var(--paper)}
+
+.loaded{margin-top:12px;display:flex;gap:8px;flex-wrap:wrap}
+.lot{font-size:12.5px;font-weight:600;padding:5px 8px 5px 12px;border-radius:6px;
+  background:var(--rule2);color:var(--ink2);display:inline-flex;align-items:center;gap:8px}
+.lot b{color:var(--ink)}
+.lot button{font:inherit;font-size:15px;font-weight:800;line-height:1;cursor:pointer;
+  border:0;background:transparent;color:var(--ink2);padding:2px 6px;border-radius:4px}
+.lot button:hover{background:var(--ng-soft);color:var(--ng)}
+.urlset{display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-top:12px;
+  padding:13px 16px;border:2px solid var(--vi);border-radius:14px;box-shadow:var(--sh);
+  background:linear-gradient(180deg,var(--vi-soft),var(--panel))}
+.urlset label{color:var(--vi)!important}
+.urlset button{background:var(--vi)!important;border-color:var(--vi)!important}
+.urlset label{font-size:12.5px;font-weight:700;color:var(--ink2);white-space:nowrap}
+.urlset input{flex:1;min-width:230px;font:inherit;font-size:13px;font-weight:500;padding:8px 11px;
+  border:2px solid var(--rule);border-radius:7px;background:var(--paper);color:var(--ink)}
+.urlset button{font:inherit;font-size:13px;font-weight:700;cursor:pointer;padding:8px 15px;
+  border-radius:7px;border:2px solid var(--ai);background:var(--ai);color:#fff}
+.urlok{font-size:12.5px;font-weight:700;color:var(--go)}
+.result{margin:20px 0 0;padding:18px;border-radius:16px;box-shadow:var(--sh);
+  background:linear-gradient(180deg,var(--go-soft),var(--panel));
+  border:2px solid var(--go)}
+.result .rhead h3{color:var(--go)}
+.result .rhead{margin-bottom:12px}
+.result .rhead h3{margin:0 0 3px;font-size:18px;font-weight:800}
+.drop.small{padding:16px;border-width:2px;border-color:var(--rule)}
+.drop.small p{margin:0;font-size:13.5px;font-weight:700;color:var(--ink2)}
+.drop.small.on{border-color:var(--ai);background:var(--ai-soft)}
+.rstats{display:flex;gap:26px;flex-wrap:wrap;margin:14px 0 10px}
+.sold{font:inherit;font-size:14px;font-weight:700;text-align:right;width:96px;padding:5px 8px;
+  border:2px solid var(--rule);border-radius:6px;background:var(--paper);color:var(--ink);
+  font-variant-numeric:tabular-nums}
+.sold:focus{border-color:var(--ai);outline:none}
+.st{display:inline-block;font-size:11.5px;font-weight:800;padding:2px 9px;border-radius:5px}
+.st-win{background:var(--go-soft);color:var(--go)}
+.st-lose{background:var(--rule2);color:var(--ink2)}
+.st-sold{background:var(--ai);color:#fff}
+
+.thumb{width:62px;height:62px;object-fit:cover;border-radius:7px;border:2px solid var(--rule);
+  cursor:pointer;background:var(--rule2);display:block}
+.thumb:hover{border-color:var(--ai)}
+.nothumb{width:62px;height:62px;border-radius:7px;background:var(--rule2);display:block}
+.lightbox{position:fixed;inset:0;z-index:120;background:rgba(0,0,0,.88);display:flex;
+  align-items:center;justify-content:center;padding:16px;cursor:zoom-out}
+.lightbox[hidden]{display:none}
+.lightbox img{max-width:100%;max-height:100%;border-radius:10px}
+.card .thumbrow{display:flex;gap:7px;margin-bottom:9px;flex-wrap:wrap}
+
+.pic{font:inherit;font-size:12px;font-weight:700;text-decoration:none;white-space:nowrap;
+  padding:5px 11px;border-radius:7px;background:var(--hold-soft);color:var(--hold);border:2px solid transparent}
+.pic:hover{border-color:var(--hold)}
+
+.breakdown{margin-top:12px;padding:13px 16px;border-radius:14px;box-shadow:var(--sh);
+  background:linear-gradient(180deg,var(--ai-soft),var(--panel));
+  border:2px solid var(--ai);font-size:14px;font-weight:700;line-height:1.9}
+.breakdown b{font-size:19px;font-weight:800;font-variant-numeric:tabular-nums}
+.breakdown .arrow{color:var(--ink2);margin:0 8px}
+.breakdown .bad{color:var(--ng)}
+.lot b{color:var(--ink)}
+
+/* ── 集計 ────────────────── */
+.stats2{margin:16px 0 10px;background:var(--panel);border:2px solid var(--rule);
+  border-radius:14px;overflow:hidden;box-shadow:var(--sh)}
+.srow{display:flex;gap:28px;align-items:center;flex-wrap:wrap;padding:16px 18px}
+.srow+.srow{border-top:1px solid var(--rule2)}
+.srow.mine{background:var(--go-soft);border-left:6px solid var(--go)}
+.srow:first-child{background:var(--ai-soft);border-left:6px solid var(--ai)}
+.srow:first-child .tag{color:var(--ai)}
+.srow .tag{font-size:12.5px;font-weight:800;color:var(--ink2);min-width:130px;letter-spacing:.02em}
+.srow.mine .tag{color:var(--go)}
+.stat{display:flex;flex-direction:column;gap:1px;padding-left:11px;border-left:4px solid var(--rule)}
+.stat.go{border-left-color:var(--go)}
+.stat.warn{border-left-color:var(--hold)}
+.stat span{font-size:12px;color:var(--ink2);font-weight:600}
+.stat b{font-size:30px;font-weight:800;line-height:1.15;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.stat.go b{color:var(--go)} .stat.warn b{color:var(--hold)}
+
+/* ── 表 ────────────────── */
+.scroll{overflow-x:auto;border:2px solid var(--rule);border-radius:14px;background:var(--panel);
+  box-shadow:var(--sh)}
+table{border-collapse:collapse;width:100%;min-width:1120px}
+.range{white-space:nowrap;text-align:left}
+.gline{display:flex;align-items:baseline;gap:8px;padding:6px 10px;border-radius:8px;
+  font-size:13px;font-weight:700;color:var(--ink);border:2px solid var(--rule);
+  background:var(--rule2)}
+.gline+.gline{margin-top:5px}
+.gline.on{background:var(--go-soft);border-color:var(--go);border-width:3px;padding:5px 9px}
+.gline .gmark{font-size:13px;color:var(--ink2)}
+.gline.on .gmark{color:var(--go)}
+.gline .glab{font-size:12.5px;font-weight:800;min-width:132px;color:var(--ink)}
+.gline.on .glab{color:var(--go)}
+.gline .glim{font-size:18px;font-weight:800;font-variant-numeric:tabular-nums;color:var(--ai);
+  min-width:118px;text-align:right}
+.gline .glim small{font-size:10px;font-weight:700;color:var(--ink2);margin-left:3px}
+.gline .gnum{font-size:14.5px;font-weight:800;font-variant-numeric:tabular-nums;color:var(--ink)}
+.gline .gnum.go{color:var(--go)}
+.gline .gto{font-size:11px;color:var(--ink2)}
+.gdiff{margin-top:6px;font-size:12.5px;font-weight:800;color:#fff;padding:3px 10px;
+  border-radius:999px;background:var(--go);display:inline-block}
+.gdiff b{font-size:14px;font-weight:800}
+.gdiff.same{background:var(--rule);color:var(--ink2)}
+.gdiff.neg{background:var(--hold);color:#fff}
+thead th{position:sticky;top:0;z-index:10;background:var(--ai-soft);color:var(--ai)!important;
+  border-bottom:3px solid var(--ai);font-size:12.5px;font-weight:800;
+  padding:11px 10px;text-align:right;white-space:nowrap;cursor:pointer;letter-spacing:.02em}
+thead th.l{text-align:left}
+tbody td{border-bottom:1px solid var(--rule2);padding:11px 10px;text-align:right;white-space:nowrap;font-size:15px;font-weight:600}
+tbody td.l{text-align:left;white-space:normal}
+tbody tr:hover{background:var(--ai-soft)}
+tbody tr:nth-child(even){background:var(--rule2)}
+:root[data-theme="dark"] tbody tr:nth-child(even){background:rgba(255,255,255,.03)}
+tbody tr.taken{background:var(--rule2)!important}
+tbody tr.taken .model{color:var(--ink2)}
+tbody tr.mine{background:var(--go-soft)!important;box-shadow:inset 5px 0 0 var(--go)}
+.name{font-size:12.5px;font-weight:500;color:var(--ink2);max-width:330px;display:inline-block;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:bottom}
+.model{font-weight:800;font-size:15.5px;color:var(--ai)}
+.rk{display:inline-block;min-width:30px;text-align:center;font-size:12.5px;font-weight:800;
+  padding:3px 7px;border-radius:5px;background:var(--rule2);color:var(--ink);letter-spacing:.03em}
+.rk-N,.rk-S,.rk-A{background:var(--go);color:#fff}
+.rk-AB{background:var(--go-soft);color:var(--go)}
+.rk-B{background:var(--ai-soft);color:var(--ai)}
+.rk-BC{background:var(--hold-soft);color:var(--hold)}
+.rk-C,.rk-D,.rk-F{background:var(--ng-soft);color:var(--ng)}
+.bid{font-weight:800;font-size:18px;color:var(--ai);font-variant-numeric:tabular-nums;
+  background:var(--ai-soft);padding:4px 10px;border-radius:6px;display:inline-block}
+.claim{font:inherit;font-size:13.5px;cursor:pointer;padding:8px 18px;border-radius:999px;
+  border:2px solid var(--ai);background:var(--ai);color:#fff;font-weight:800;min-width:92px}
+.claim.off{background:transparent;color:var(--ai);border-color:var(--ai);font-weight:700}
+.claim.off:hover{background:var(--ai-soft)}
+.claim:disabled{cursor:default;opacity:.6}
+.who{font-size:13px;color:var(--ink2);font-weight:600}
+.who b{color:var(--ink)}
+
+/* ── フッタ ────────────────── */
+.foot{position:fixed;left:0;right:0;bottom:0;z-index:40;background:var(--panel);
+  border-top:3px solid var(--go);box-shadow:0 -6px 20px rgba(20,16,11,.1);padding:9px 14px calc(9px + env(safe-area-inset-bottom,0px))}
+.foot .in{max-width:1240px;margin:0 auto;display:flex;gap:16px;align-items:center;flex-wrap:wrap;font-size:14px;font-weight:600}
+.foot button{font:inherit;font-size:14px;font-weight:700;cursor:pointer;padding:10px 20px;border-radius:999px;
+  border:2px solid var(--rule);background:var(--paper);color:var(--ink)}
+.foot button.primary{background:var(--go);border-color:var(--go);color:#fff;font-weight:800}
+.foot button:disabled{opacity:.4;cursor:default}
+.tally{display:flex;gap:14px;flex-wrap:wrap}
+.tally b{font-variant-numeric:tabular-nums;font-size:19px;font-weight:800}
+
+.budget{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin:14px 0 0;
+  padding:16px 18px;border:2px solid var(--hold);border-radius:14px;box-shadow:var(--sh);
+  background:linear-gradient(180deg,var(--hold-soft),var(--panel))}
+.budget label{color:var(--hold)!important}
+.budget label{font-size:12.5px;font-weight:700;color:var(--ink2)}
+.budget input{font:inherit;font-size:19px;font-weight:800;text-align:right;width:140px;
+  padding:8px 12px;border:2px solid var(--rule);border-radius:7px;background:var(--paper);color:var(--ink);
+  font-variant-numeric:tabular-nums}
+.budget input:focus{border-color:var(--ai);outline:none}
+.budget .presets{display:flex;gap:5px}
+.budget button.pre{font:inherit;font-size:13px;font-weight:700;cursor:pointer;padding:7px 14px;border-radius:999px;
+  border:2px solid var(--rule);background:var(--panel);color:var(--ink2)}
+.budget button.pre:hover{border-color:var(--ai);color:var(--ai)}
+.budget button.auto{font:inherit;font-size:14.5px;font-weight:800;cursor:pointer;padding:11px 22px;
+  border-radius:999px;border:2px solid var(--ai);background:var(--ai);color:#fff}
+.budget button.auto.clear{background:transparent;color:var(--ink2);border-color:var(--rule);font-weight:400}
+.bar2{flex:1;min-width:160px;height:12px;background:var(--rule2);border-radius:4px;overflow:hidden}
+.bar2 i{display:block;height:100%;background:var(--go);border-radius:4px}
+.bar2.over i{background:var(--ng)}
+.budget .amt{font-size:13.5px;font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
+.budget .amt b{font-size:22px;font-weight:800}
+.budget .amt.over b{color:var(--ng)}
+
+.brands{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.brandchip{font-size:13px;font-weight:800;padding:6px 13px;border-radius:999px;
+  background:var(--ai-soft);color:var(--ai)}
+.brandchip.no{background:var(--ng-soft);color:var(--ng)}
+.brandchip b{color:var(--ink)}
+.brandchip.no b{color:var(--ng)}
+
+.note{font-size:13px;font-weight:500;color:var(--ink2);line-height:1.85;margin:16px 0 0}
+.note code{background:var(--rule2);padding:1px 5px;border-radius:3px;font-size:12px}
+.warnbox{margin-top:12px;padding:10px 13px;border-radius:6px;background:var(--hold-soft);
+  color:var(--hold);font-size:13px;font-weight:500}
+.empty{padding:40px 16px;text-align:center;color:var(--ink2);font-size:14px}
+input[type=file]{display:none}
+
+/* ── ぎゅっと表示 ── */
+body.compact tbody td{padding:4px 7px;font-size:13px}
+body.compact .model{font-size:13.5px}
+body.compact .thumb,body.compact .nothumb{width:38px;height:38px;border-width:1px}
+body.compact .gline{padding:2px 7px;font-size:11.5px;border-width:1px;gap:6px}
+body.compact .gline.on{padding:2px 7px;border-width:2px}
+body.compact .gline+.gline{margin-top:2px}
+body.compact .gline .glab{font-size:10.5px;min-width:104px}
+body.compact .gline .glim{font-size:14px;min-width:92px}
+body.compact .gline .glim small{display:none}
+body.compact .gline .gnum{font-size:12.5px}
+body.compact .gdiff{display:none}
+body.compact .gline.off2{display:none}
+body.compact .name,body.compact th.nm{display:none}
+body.compact td.nm{display:none}
+body.compact .claim{padding:4px 12px;font-size:12px;min-width:74px}
+body.compact .tg{padding:3px 9px;font-size:11px;border-width:1px}
+body.compact .symbtn{padding:3px 8px;font-size:11px;border-width:1px}
+body.compact .rk{min-width:26px;font-size:11px;padding:1px 5px}
+body.compact thead th{padding:6px 7px;font-size:11.5px}
+body.compact table{min-width:760px}
+body.compact .card{padding:9px 11px}
+body.compact .card .mname{font-size:15px}
+body.compact .card .full,body.compact .card .thumbrow{display:none}
+body.compact .card .kv b{font-size:16px}
+
+.symbtn{font:inherit;font-size:12px;font-weight:700;cursor:pointer;padding:5px 11px;border-radius:999px;
+  border:2px dashed var(--rule);background:transparent;color:var(--ink2);white-space:nowrap}
+.symbtn.has{border-style:solid;border-color:var(--go);background:var(--go-soft);color:var(--go)}
+.modal{position:fixed;inset:0;z-index:100;background:rgba(0,0,0,.45);display:flex;
+  align-items:flex-end;justify-content:center;padding:0}
+.modal[hidden]{display:none}
+.sheet{background:linear-gradient(180deg,var(--vi-soft),var(--panel));width:100%;max-width:720px;max-height:86vh;overflow-y:auto;
+  border-radius:20px 20px 0 0;padding:18px 18px calc(18px + env(safe-area-inset-bottom,0px));
+  border-top:4px solid var(--vi)}
+@media (min-width:720px){.modal{align-items:center}.sheet{border-radius:16px;border:3px solid var(--ai)}}
+.sheet h3{margin:0 0 3px;font-size:19px;font-weight:800;color:var(--vi)}
+.sheet .sub2{font-size:13px;color:var(--ink2);font-weight:600;margin-bottom:12px}
+.matgroup{margin-bottom:14px}
+.matgroup h4{margin:0 0 7px;font-size:13px;font-weight:800;color:var(--ink2);
+  border-bottom:2px solid var(--rule2);padding-bottom:4px}
+.symlist{display:flex;gap:7px;flex-wrap:wrap}
+.sym{font:inherit;font-size:13px;font-weight:600;cursor:pointer;padding:7px 12px;border-radius:8px;
+  border:2px solid var(--rule);background:var(--panel);color:var(--ink);text-align:left}
+.sym[aria-pressed="true"]{border-color:var(--go);background:var(--go-soft);color:var(--go);font-weight:800}
+.sym small{display:block;font-size:10.5px;font-weight:600;color:var(--ink2);margin-top:1px}
+.sym[aria-pressed="true"] small{color:var(--go)}
+.sym.x{opacity:.5}
+.sheet .close{position:sticky;bottom:0;margin-top:10px;display:flex;gap:9px;background:var(--panel);padding-top:10px}
+.sheet .close button{flex:1;font:inherit;font-size:15px;font-weight:800;cursor:pointer;padding:12px;
+  border-radius:9px;border:2px solid var(--ai);background:var(--ai);color:#fff}
+.sheet .close button.sub{background:transparent;color:var(--ink2);border-color:var(--rule)}
+
+.tg{font:inherit;font-size:12.5px;font-weight:700;cursor:pointer;padding:6px 13px;border-radius:999px;
+  border:2px solid var(--rule);background:transparent;color:var(--ink2);white-space:nowrap}
+.tg[aria-pressed="true"]{background:var(--hold);border-color:var(--hold);color:#fff;font-weight:800}
+.tg[aria-pressed="false"]{border-color:var(--ink2);color:var(--ink)}
+.bidded{display:inline-block;font-size:11.5px;font-weight:800;margin-left:7px;
+  padding:2px 8px;border-radius:5px;background:var(--ai);color:#fff}
+
+/* ── カード（スマホ） ── */
+.cards{display:none;flex-direction:column;gap:9px}
+.card{background:var(--panel);border:2px solid var(--rule);border-radius:14px;padding:14px 15px;
+  box-shadow:var(--sh)}
+.card.taken{opacity:.45}
+.card.mine{border-color:var(--go);border-width:3px;background:var(--go-soft)}
+.card .top{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;margin-bottom:6px}
+.card .mname{font-size:19px;font-weight:800;letter-spacing:-.01em}
+.card .full{font-size:12.5px;font-weight:500;color:var(--ink2);line-height:1.5;margin:6px 0 9px;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.card .kv{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:9px}
+.card .kv div{display:flex;flex-direction:column}
+.card .kv span{font-size:11.5px;font-weight:700;color:var(--ink2)}
+.card .kv b{font-size:21px;font-weight:800;font-variant-numeric:tabular-nums}
+.card .kv b.bidv{color:var(--ai)}
+.card .acts{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.card .acts .claim{flex:1;min-width:110px;padding:9px 12px;font-size:13px}
+
+@media (max-width:820px){
+  .scroll{display:none}
+  .cards{display:flex}
+  main{padding-bottom:132px}
+  .srow{gap:14px;padding:10px 12px}
+  .srow .tag{min-width:100%;margin-bottom:-4px}
+  .stat b{font-size:17px}
+  .budget{gap:10px}
+  .budget input{width:110px}
+  .budget button.auto{flex:1;min-width:150px}
+}
+@media (max-width:640px){main{padding-bottom:120px}.bar .sub{display:none}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="bar">
+    <h1>エコオク 入札指示</h1>
+    <span class="sub" id="hcount">判定表 54モデル／8ヶ月・55,001件</span>
+    <span class="spacer"></span>
+    <div class="chips" id="modeChips"></div>
+    <div class="chips" id="denChips"></div>
+    <span class="whoami">
+      <label for="myname">自分の名前</label>
+      <input type="text" id="myname" placeholder="名前を入れる" maxlength="12">
+    </span>
+    <span class="conn ng" id="conn">つながっていません</span>
+    <button class="chip" id="themeBtn" type="button">表示切替</button>
+  </div>
+</header>
+
+<main>
+  <div class="drop" id="drop">
+    <h2>下見リストのCSVをここに放り込む</h2>
+    <p>エコオクの下見画面で「商品リストダウンロード」→ 落ちたCSVをドラッグ、またはクリックして選ぶ。<br>
+       レーンが複数あるときは、4つまとめて放り込んでいい。同じ商品は自動で1つにまとまる。</p>
+    <input type="file" id="file" accept=".csv" multiple>
+  </div>
+  <div class="loaded" id="loaded"></div>
+  <div class="urlset" id="photoset">
+    <label>商品の写真</label>
+    <div class="drop small" id="drop3" style="flex:1;min-width:250px">
+      <p id="photoMsg">下見ページを「ウェブページ、完全」で保存 → できた <b>_files フォルダ</b> をここに入れる</p>
+      <input type="file" id="file3" accept="image/*" multiple webkitdirectory>
+    </div>
+    <button type="button" id="pickImgs">画像を選ぶ</button>
+    <input type="file" id="file3b" accept="image/*" multiple style="display:none">
+  </div>
+
+  <div class="urlset" id="urlset">
+    <label for="urlTpl">商品ページのURL</label>
+    <input type="text" id="urlTpl" placeholder="エコオクの商品ページを1つ開いて、URLをここに貼る">
+    <button type="button" id="urlSave">覚えさせる</button>
+    <span class="urlok" id="urlOk"></span>
+  </div>
+  <div class="breakdown" id="breakdown" hidden></div>
+
+  <div class="stats2" id="stats" hidden>
+    <div class="srow">
+      <span class="tag">入札する商品すべて</span>
+      <div class="stat"><span>件数</span><b class="num" id="aBid">0</b></div>
+      <div class="stat"><span>全部落ちたときの支払い</span><b class="num" id="aSum">¥0</b></div>
+      <div class="stat go"><span>手残り（最低〜最高）</span><b class="num" id="aRange">¥0</b></div>
+    </div>
+    <div class="srow mine">
+      <span class="tag">自分の担当</span>
+      <div class="stat"><span>件数</span><b class="num" id="sMine">0</b></div>
+      <div class="stat"><span>全部落ちたときの支払い</span><b class="num" id="sSum">¥0</b></div>
+      <div class="stat go"><span>手残り（最低〜最高）</span><b class="num" id="sRange">¥0</b></div>
+    </div>
+  </div>
+  <div class="brands" id="brands"></div>
+
+  <div class="budget" id="budgetBox" hidden>
+    <label for="budget">1開催の予算（税・手数料・送料込み）</label>
+    <input type="number" id="budget" value="500000" step="50000" min="0">
+    <div class="presets">
+      <button type="button" class="pre" data-b="300000">30万</button>
+      <button type="button" class="pre" data-b="500000">50万</button>
+      <button type="button" class="pre" data-b="1000000">100万</button>
+      <button type="button" class="pre" data-b="2000000">200万</button>
+    </div>
+    <label for="repair" style="margin-left:6px">リペアの材料費</label>
+    <input type="number" id="repair" value="0" step="1000" min="0" style="width:100px">
+    <button type="button" class="auto" id="autoPick">利益の大きい順に予算まで担当する</button>
+    <button type="button" class="auto clear" id="autoClear">自分の担当を全部外す</button>
+    <div class="bar2" id="bar2"><i id="bar2f" style="width:0%"></i></div>
+    <span class="amt" id="budgetAmt"><b>¥0</b> / ¥500,000</span>
+  </div>
+
+  <div id="warn"></div>
+
+  <div class="result" id="resultBox">
+    <div class="rhead">
+      <h3>落札結果を記録する</h3>
+      <span class="dim" style="font-size:12.5px;font-weight:600">オークションが終わったら、落札結果のCSVをここに入れる。売れた値段は後から手で入れる。</span>
+    </div>
+    <div class="drop small" id="drop2">
+      <p>落札結果のCSVをここに放り込む（または クリックして選ぶ）</p>
+      <input type="file" id="file2" accept=".csv" multiple>
+    </div>
+    <div class="rstats" id="rstats" hidden></div>
+    <div class="scroll" id="rwrap" hidden>
+      <table>
+        <thead><tr>
+          <th class="l">モデル</th><th class="l">ランク</th>
+          <th>入れた上限</th><th>落札額</th><th>仕入れ総額</th>
+          <th>売れた値段</th><th>手残り</th><th class="l">状態</th>
+        </tr></thead>
+        <tbody id="rtb"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="cards" id="cards"></div>
+
+  <div class="scroll" id="tableWrap" hidden>
+    <table>
+      <thead>
+        <tr>
+          <th class="l">写真</th>
+          <th class="l" data-sort="order">出品順</th>
+          <th class="l" data-sort="model">モデル</th>
+          <th class="l">ランク</th>
+          <th data-sort="start">開始価格</th>
+          <th class="l" data-sort="gainStart">いくらまで入れる／手残り（最低〜最高）</th>
+          <th class="l">直す</th>
+          <th class="l nm">商品名</th>
+          <th class="l">担当</th>
+        </tr>
+      </thead>
+      <tbody id="tb"></tbody>
+    </table>
+  </div>
+  <div class="empty" id="empty">まだCSVが読み込まれていません。</div>
+
+  <p class="note">
+    <b>いくらまで入れる</b>＝この金額を事前入札に入れる。自動入札なので、実際の支払いはこれ以下になる。<br>
+    各商品に<b>2つの行</b>が出る。<b>● 緑の枠が今の設定</b>で、書き出すCSVにはその金額が入る。
+    青い大きな数字が<b>いくらまで入れていいか</b>、右の2つが<b>手残りの最低〜最高</b>。左が赤なら赤字の可能性あり。<br>
+    <b>ランク</b>で売値が変わる：A・ABは状態がいいので高く、C・Fは安く見積もる。<br>
+    <b>直す</b>は、A・AB以外は最初からONになっている（状態が悪いものは直して売る前提）。押して切り替えられる。<br>
+    <b>直す所を選ぶ</b>でリペアマニュアルの101症例から該当するものを選べる。書き出すCSVのメモ欄に入る。<br>
+    <b>写真</b>は下見ページを「ウェブページ、完全」で保存してできる <b>_files フォルダ</b>を入れると出る。画像のファイル名にある商品管理番号で自動で結びつく。タップで拡大。<br>
+    担当を押すと、他のメンバーの画面ではその商品が押せなくなる。書き出すと「入札済」が付く。
+  </p>
+</main>
+
+<div class="lightbox" id="lightbox" hidden><img id="lightimg" alt=""></div>
+
+<div class="modal" id="symModal" hidden>
+  <div class="sheet">
+    <h3 id="symTitle">どこを直す？</h3>
+    <div class="sub2" id="symSub"></div>
+    <div id="symBody"></div>
+    <div class="close">
+      <button type="button" class="sub" id="symClear">全部外す</button>
+      <button type="button" id="symDone">決定</button>
+    </div>
+  </div>
+</div>
+
+<div class="foot">
+  <div class="in">
+    <div class="tally">
+      <span>自分 <b class="num" id="fMine">0</b>件</span>
+      <span id="byWho"></span>
+      <span>未割当 <b class="num" id="fFree">0</b>件</span>
+    </div>
+    <span class="spacer"></span>
+    <button type="button" id="claimAll">表示中を全部担当する</button>
+    <button type="button" id="dlAll" class="primary" disabled>入札CSVを書き出す（自分の担当）</button>
+    <button type="button" id="clearBtn">読み込みを消す</button>
+  </div>
+</div>
+
+<script>
+const LIMITS = [{"k":"ネヴァーフル PM モノグラム","n":4,"q1":35000,"ec":44000,"mq1":62000,"mm":78000,"mq3":94000,"ub":53000,"ub3":65000,"m3":93000,"m3est":0,"m3fix":0},{"k":"ネヴァーフル MM ダミエ","n":11,"q1":34000,"ec":43000,"mq1":57000,"mm":69399,"mq3":80000,"ub":46000,"ub3":69000,"m3":98000,"m3est":0,"m3fix":0},{"k":"ソローニュ モノグラム","n":12,"q1":36000,"ec":41000,"mq1":50000,"mm":59500,"mq3":70000,"ub":38000,"ub3":56000,"m3":81875,"m3est":0,"m3fix":0},{"k":"スフロ エピ","n":10,"q1":31000,"ec":41000,"mq1":44000,"mm":55555,"mq3":74800,"ub":35000,"ub3":30000,"m3":55555,"m3est":0,"m3fix":1},{"k":"スピーディ 25 モノグラム","n":62,"q1":33000,"ec":40000,"mq1":43000,"mm":54616,"mq3":63000,"ub":34000,"ub3":58000,"m3":83900,"m3est":0,"m3fix":0},{"k":"キーポルバンドリエール モノグラム","n":16,"q1":34000,"ec":41000,"mq1":45000,"mm":54350,"mq3":60000,"ub":34000,"ub3":0,"m3":70809,"m3est":1,"m3fix":0},{"k":"キーポルバンドリエール 55 モノグラム","n":27,"q1":33000,"ec":39500,"mq1":40000,"mm":52097,"mq3":63000,"ub":32000,"ub3":47000,"m3":70500,"m3est":0,"m3fix":0},{"k":"キーポルバンドリエール 50 モノグラム","n":20,"q1":31000,"ec":38000,"mq1":38900,"mm":51000,"mq3":63000,"ub":31000,"ub3":50000,"m3":74000,"m3est":0,"m3fix":0},{"k":"キーポルバンドリエール 60 モノグラム","n":20,"q1":34000,"ec":39000,"mq1":43000,"mm":51500,"mq3":55000,"ub":31000,"ub3":42000,"m3":64500,"m3est":0,"m3fix":0},{"k":"モンスリ MM モノグラム","n":12,"q1":37000,"ec":43000,"mq1":40000,"mm":50000,"mq3":55000,"ub":30000,"ub3":0,"m3":65141,"m3est":1,"m3fix":0},{"k":"モンスリ モノグラム","n":10,"q1":32000,"ec":40000,"mq1":37000,"mm":48000,"mq3":54000,"ub":28000,"ub3":0,"m3":62536,"m3est":1,"m3fix":0},{"k":"キーポル モノグラム","n":35,"q1":25000,"ec":34000,"mq1":39000,"mm":46713,"mq3":55000,"ub":27000,"ub3":32000,"m3":52000,"m3est":0,"m3fix":0},{"k":"キーポル 50 モノグラム","n":96,"q1":29000,"ec":37000,"mq1":38800,"mm":45477,"mq3":50000,"ub":26000,"ub3":30000,"m3":50000,"m3est":0,"m3fix":0},{"k":"キーポル 60 モノグラム","n":50,"q1":33000,"ec":40000,"mq1":39000,"mm":45200,"mq3":52000,"ub":26000,"ub3":0,"m3":58888,"m3est":1,"m3fix":0},{"k":"ルーピング モノグラム","n":11,"q1":28000,"ec":36500,"mq1":33000,"mm":42400,"mq3":51500,"ub":24000,"ub3":0,"m3":55240,"m3est":1,"m3fix":0},{"k":"ミニスピーディ モノグラム","n":30,"q1":30000,"ec":40000,"mq1":33000,"mm":42500,"mq3":54000,"ub":24000,"ub3":0,"m3":55370,"m3est":1,"m3fix":0},{"k":"モンスリ GM モノグラム","n":15,"q1":32000,"ec":39000,"mq1":35900,"mm":43000,"mq3":50180,"ub":24000,"ub3":0,"m3":56021,"m3est":1,"m3fix":0},{"k":"スピーディ 25 エピ","n":13,"q1":34000,"ec":42000,"mq1":38500,"mm":42500,"mq3":58000,"ub":24000,"ub3":0,"m3":55370,"m3est":1,"m3fix":0},{"k":"キーポル 45 モノグラム","n":70,"q1":28000,"ec":36000,"mq1":35000,"mm":42000,"mq3":47400,"ub":23000,"ub3":0,"m3":54719,"m3est":1,"m3fix":0},{"k":"キーポル 55 モノグラム","n":92,"q1":31000,"ec":37000,"mq1":34900,"mm":42000,"mq3":50000,"ub":23000,"ub3":0,"m3":54719,"m3est":1,"m3fix":0},{"k":"プチノエ モノグラム","n":39,"q1":29000,"ec":36000,"mq1":33250,"mm":39800,"mq3":48800,"ub":22000,"ub3":0,"m3":51852,"m3est":1,"m3fix":0},{"k":"スピーディ モノグラム","n":46,"q1":29000,"ec":37000,"mq1":35000,"mm":40800,"mq3":50000,"ub":22000,"ub3":0,"m3":53155,"m3est":1,"m3fix":0},{"k":"スピーディ エピ","n":10,"q1":30000,"ec":39000,"mq1":35800,"mm":40000,"mq3":46000,"ub":22000,"ub3":0,"m3":52113,"m3est":1,"m3fix":0},{"k":"スピーディ 30 モノグラム","n":152,"q1":31000,"ec":38000,"mq1":34600,"mm":40000,"mq3":50000,"ub":22000,"ub3":0,"m3":52113,"m3est":1,"m3fix":0},{"k":"アルマ エピ","n":22,"q1":33000,"ec":41000,"mq1":32500,"mm":40000,"mq3":49000,"ub":22000,"ub3":0,"m3":52113,"m3est":1,"m3fix":0},{"k":"スピーディ 30 エピ","n":18,"q1":34000,"ec":41000,"mq1":35000,"mm":39640,"mq3":43000,"ub":22000,"ub3":0,"m3":51644,"m3est":1,"m3fix":0},{"k":"アルマ モノグラム","n":154,"q1":27000,"ec":31000,"mq1":30100,"mm":37000,"mq3":47000,"ub":19000,"ub3":0,"m3":48204,"m3est":1,"m3fix":0},{"k":"ブロワ モノグラム","n":24,"q1":29000,"ec":33000,"mq1":29800,"mm":36000,"mq3":42000,"ub":19000,"ub3":0,"m3":46902,"m3est":1,"m3fix":0},{"k":"カバメゾ モノグラム","n":25,"q1":25000,"ec":33000,"mq1":28000,"mm":34850,"mq3":43000,"ub":18000,"ub3":0,"m3":45403,"m3est":1,"m3fix":0},{"k":"ブローニュ 30 モノグラム","n":10,"q1":26000,"ec":34000,"mq1":29980,"mm":35000,"mq3":39000,"ub":18000,"ub3":0,"m3":45599,"m3est":1,"m3fix":0},{"k":"ポシェットアクセソワール モノグラム","n":159,"q1":27000,"ec":34000,"mq1":28000,"mm":35000,"mq3":42000,"ub":18000,"ub3":0,"m3":45599,"m3est":1,"m3fix":0},{"k":"アルマ PM モノグラム","n":38,"q1":28000,"ec":33000,"mq1":30000,"mm":35900,"mq3":42000,"ub":18000,"ub3":0,"m3":46771,"m3est":1,"m3fix":0},{"k":"ミニポシェットアクセソワール モノグラム","n":13,"q1":28000,"ec":35000,"mq1":30000,"mm":35000,"mq3":41800,"ub":18000,"ub3":0,"m3":45599,"m3est":1,"m3fix":0},{"k":"バビロン モノグラム","n":26,"q1":21000,"ec":27000,"mq1":27000,"mm":32500,"mq3":37000,"ub":16000,"ub3":0,"m3":42342,"m3est":1,"m3fix":0},{"k":"パピヨン モノグラム","n":68,"q1":22000,"ec":30000,"mq1":24000,"mm":32800,"mq3":44000,"ub":16000,"ub3":0,"m3":42733,"m3est":1,"m3fix":0},{"k":"ミュゼット モノグラム","n":20,"q1":22000,"ec":28000,"mq1":27000,"mm":33000,"mq3":39500,"ub":16000,"ub3":0,"m3":42993,"m3est":1,"m3fix":0},{"k":"ドーヴィル モノグラム","n":76,"q1":23000,"ec":30000,"mq1":26300,"mm":31500,"mq3":36000,"ub":15000,"ub3":0,"m3":41039,"m3est":1,"m3fix":0},{"k":"リポーター PM モノグラム","n":49,"q1":21000,"ec":27000,"mq1":22000,"mm":29999,"mq3":36000,"ub":14000,"ub3":0,"m3":39083,"m3est":1,"m3fix":0},{"k":"ベッドフォード ヴェルニ","n":12,"q1":24000,"ec":30000,"mq1":25000,"mm":29999,"mq3":33000,"ub":14000,"ub3":0,"m3":39083,"m3est":1,"m3fix":0},{"k":"ナイル モノグラム","n":53,"q1":21000,"ec":29000,"mq1":22000,"mm":28000,"mq3":33000,"ub":12000,"ub3":0,"m3":36479,"m3est":1,"m3fix":0},{"k":"トロカデロ 27 モノグラム","n":16,"q1":20000,"ec":26000,"mq1":21000,"mm":27100,"mq3":33900,"ub":11000,"ub3":0,"m3":35306,"m3est":1,"m3fix":0},{"k":"ポシェットアクセソワール エピ","n":21,"q1":20000,"ec":28000,"mq1":20000,"mm":25000,"mq3":31000,"ub":10000,"ub3":0,"m3":32570,"m3est":1,"m3fix":0},{"k":"ポシェットツイン GM モノグラム","n":30,"q1":23000,"ec":30000,"mq1":19880,"mm":25000,"mq3":29900,"ub":10000,"ub3":0,"m3":32570,"m3est":1,"m3fix":0},{"k":"マルリーバンドリエール モノグラム","n":45,"q1":19000,"ec":25000,"mq1":18200,"mm":24000,"mq3":29000,"ub":9000,"ub3":0,"m3":31268,"m3est":1,"m3fix":0},{"k":"トロカデロ モノグラム","n":47,"q1":20000,"ec":24500,"mq1":20200,"mm":24000,"mq3":31999,"ub":9000,"ub3":0,"m3":31268,"m3est":1,"m3fix":0},{"k":"サックプラ モノグラム","n":53,"q1":18000,"ec":23000,"mq1":20000,"mm":23550,"mq3":29000,"ub":8000,"ub3":0,"m3":30681,"m3est":1,"m3fix":0},{"k":"ポルトドキュマン モノグラム","n":18,"q1":18000,"ec":25000,"mq1":18000,"mm":22950,"mq3":30000,"ub":8000,"ub3":0,"m3":29900,"m3est":1,"m3fix":0},{"k":"アマゾン モノグラム","n":96,"q1":18000,"ec":24000,"mq1":16999,"mm":21740,"mq3":29000,"ub":7000,"ub3":0,"m3":28323,"m3est":1,"m3fix":0},{"k":"レキシントン ヴェルニ","n":11,"q1":17000,"ec":23000,"mq1":13000,"mm":20800,"mq3":26666,"ub":6000,"ub3":0,"m3":27098,"m3est":1,"m3fix":0},{"k":"サンクル GM モノグラム","n":10,"q1":18000,"ec":24000,"mq1":16500,"mm":20299,"mq3":25800,"ub":6000,"ub3":0,"m3":26446,"m3est":1,"m3fix":0},{"k":"ヒューストン ヴェルニ","n":16,"q1":16000,"ec":19500,"mq1":12000,"mm":14700,"mq3":17800,"ub":1000,"ub3":0,"m3":19151,"m3est":1,"m3fix":0},{"k":"トゥルーストワレット 28 モノグラム","n":30,"q1":16000,"ec":19000,"mq1":11000,"mm":14000,"mq3":17000,"ub":1000,"ub3":0,"m3":18239,"m3est":1,"m3fix":0},{"k":"トゥルーストワレット 23 モノグラム","n":17,"q1":17000,"ec":20000,"mq1":11080,"mm":14995,"mq3":18000,"ub":1000,"ub3":0,"m3":19536,"m3est":1,"m3fix":0},{"k":"オルセ モノグラム","n":12,"q1":18000,"ec":23500,"mq1":12000,"mm":14900,"mq3":17777,"ub":1000,"ub3":0,"m3":19412,"m3est":1,"m3fix":0}];
+const NZ = {"GARA":["モノグラムアンプラント","モノグラムマルチカラー","モノグラムミニラン","モノグラムデニム","モノグラムマット","モノグラムヴェルニ","ダミエアズール","ダミエグラフィット","ダミエジェアン","ダミエアンフィニ","モノグラム","ダミエ","アンプラント","ヴェルニ","ベルニ","エピ","タイガ","マヒナ","スハリ","マルチカラー","アズール","グラフィット","ノマド","アンティグア","ミニラン","ジェアン","マット"],"NOISE":["LOUIS VUITTON","LOUISVUITTON","VUITTON","Vuitton","vuitton","Louis","louis","LOUIS","ルイヴィトン","ルイ・ヴィトン","ヴィトン","LV","ID-","PH-","FR-","HK-","SG-","TH-","JP-","シリアル不鮮明","シリアル不明","シリアルなし","シリアル無し","シリアル不","内ベタ無し","内ベタなし","ベタ無し","旧型","新型","現行","クロシェット付","子供付","付属ポーチ","ストラップ付","保存袋付","まとめ","セット","ジャンク","難あり","訳あり","ブラウン","ブラック","ベージュ","ホワイト","ネイビー","ボルドー","レッド","ピンク","ブルー","グリーン","イエロー","パープル","オレンジ","グレー","シルバー","ゴールド","黒","白","赤","青","ショルダーバッグ","ショルダーバック","ショルダバッグ","ショルダ","ハンドバッグ","ハンドバック","トートバッグ","トートバック","ボストンバッグ","セカンドバッグ","クラッチバッグ","ビジネスバッグ","ウエストバッグ","リュックサック","キャリーバッグ","アクセサリーポーチ","バッグ","バック","ポーチ","ポシェット型","Monogram","monogram","Damier","damier","Epi","epi","Hand Bag","hand bag","Shoulder","shoulder","Bag","bag","Leather","leather","Pouchette","Accessories"],"SEED":["ポシェットアクセソワール","ミニポシェットアクセソワール","ポシェットメティス","キーポルバンドリエール","スピーディバンドリエール","ミニスピーディ","トゥルーストワレット","トゥルースメイクアップ","ミュゼットサルサ","ミュゼットタンゴ","サンジャックショッピング","エクスプロラトゥール","カルトシエール","ジュヌフィーユ","コンピエーニュ","ジェロニモス","ネヴァーフル","スピーディ","キーポル","アルマ","ノエ","プチノエ","ネオノエ","バケット","ソミュール","トロカデロ","アマゾン","ルーピング","ミニルーピング","ダヌーブ","サックプラ","パピヨン","モンスリ","ブローニュ","カバピアノ","カバメゾ","カバスビーチ","ポシェットツイン","ドルーオ","ミュゼット","ナイル","サンジャック","ドーヴィル","サンクル","リポーター","ソローニュ","ヴェローナ","クリュニー","シャンティ","マルリー","ティボリ","ポパンクール","ルコ","バティニョール","マンハッタン","ハムステッド","サレヤ","ティヴォリ","エヴァ","ファヴォリ","パラス","メトロ","ブレラ","ヴァヴァン","ベルエア","リヴィントン","トータリー","デルフト","ビバリー","ソナチネ","ヴィヴァシテ","シテ","ポルトドキュマン","ピムリコ","ストックトン","アクセソワール","モンソー","モンソ","サンポール","ルシール","ミラ","グラチェ","オデオン","ブルームズベリ","イエナ","デライトフル","アルテジア","ヴェスト","オルセー","オルセ","ダミエジェアン","テュレンヌ"],"ALIAS":{"チェルシ":"チェルシー","Nチェルシ":"チェルシー","クリュニ":"クリュニー","ウィルシャ":"ウィルシャー","ムズベリ":"ブルームズベリ","ブルムズベリ":"ブルームズベリ","ジョヌフィーユ":"ジュヌフィーユ","スピディ":"スピーディ","スピーデイ":"スピーディ","トゥルービル":"トゥルーヴィル","旧パピヨン":"パピヨン","パピヨン旧":"パピヨン","フロランティーヌ":"ポシェットフロランティーヌ","サックショッピング":"サンジャックショッピング","サンクルー":"サンクル","ミニサンクル":"サンクル","オルセー":"オルセ","モンソー":"モンソ","リポータ":"リポーター","レポーター":"リポーター","トロタ":"ポシェットトロター","トロター":"ポシェットトロター","ジュヌフィーユ":"ジュヌフィーユ","プチバケット":"バケット","ミニバケット":"バケット","ミニカルトシエール":"カルトシエール","ミニルーピング":"ルーピング"},"SIZE":["PM","MM","GM","BB","NM","25","26","27","28","30","32","33","35","40","45","50","55","60","65","70"]};
+const SYMPTOMS = [{"id":"s1","m":"ヌメ革","p":"箔押しロゴのある面","sym":"黒ずみ","v":"直る"},{"id":"n6","m":"ヌメ革","p":"持ち手・細い面","sym":"黒ずみ","v":"直る"},{"id":"n34","m":"ヌメ革","p":"底面・広い面","sym":"削り跡のまだら","v":"直る"},{"id":"n35","m":"ヌメ革","p":"パイピング・細い面","sym":"点状の濃いシミ","v":"直る"},{"id":"n39","m":"ヌメ革","p":"ステッチが密な細い面","sym":"黒ずみ（洗浄で落とす）","v":"直る"},{"id":"n40","m":"ヌメ革","p":"削った後の面","sym":"艶が戻らない","v":"直る"},{"id":"n41","m":"ヌメ革","p":"ヴィンテージの持ち手","sym":"削った後に出るひび割れ","v":"直る"},{"id":"t11","m":"ヌメ革","p":"仕上げの判断","sym":"どこで仕上げを止めるか","v":"技法"},{"id":"n1","m":"コバ","p":"バッグ・財布のフチ","sym":"ひび割れ","v":"直る"},{"id":"n12","m":"コバ","p":"パンチングレザー等のコバ","sym":"色抜け","v":"直る"},{"id":"s2","m":"金具","p":"引き手・カブセ","sym":"サビ","v":"直る"},{"id":"n7","m":"金具","p":"金具全般","sym":"くすみ・黒ずみ","v":"直る"},{"id":"n8","m":"金具","p":"金具全般","sym":"メッキの剥がれ","v":"直る"},{"id":"n8b","m":"金具","p":"濃いゴールドの金具","sym":"金色の白ボケ","v":"直る"},{"id":"n2","m":"金具","p":"ロゴプレート","sym":"ロゴの色落ち","v":"直る"},{"id":"n31","m":"金具","p":"カブセのボタン","sym":"ボタンの緩み","v":"直る"},{"id":"n37","m":"金具","p":"ロゴボタン・鋲・ホック","sym":"黒い塗装の剥がれ","v":"直る"},{"id":"n57","m":"金具","p":"巾着型の紐通し","sym":"歯止めの外れ","v":"直る"},{"id":"n58","m":"金具","p":"南京錠","sym":"鍵の欠品","v":"軽減のみ"},{"id":"s12","m":"金具","p":"ファスナー引き手","sym":"引き手の欠品","v":"不可"},{"id":"n63","m":"金具","p":"ファスナー","sym":"開閉が重い","v":"軽減のみ"},{"id":"n59","m":"金具","p":"プラスチックのパーツ","sym":"プラスチックの割れ・欠け","v":"直る"},{"id":"t40","m":"金具","p":"仕上げの見分け","sym":"元からのくすみ（加工仕上げ）","v":"技法"},{"id":"n29","m":"プリント","p":"プリント面・本体","sym":"プリント面の汚れ","v":"直る"},{"id":"n26","m":"プリント","p":"柄・ロゴのある面","sym":"プリントの白化","v":"直る"},{"id":"n61","m":"プリント","p":"柄のある面","sym":"柄の消失","v":"直る"},{"id":"n65","m":"プリント","p":"装飾のある面","sym":"色あせ（装飾つき）","v":"直る"},{"id":"n28","m":"エナメル","p":"本体全体","sym":"くすみ・黄ばみ","v":"直る"},{"id":"n55","m":"エナメル","p":"コーティングの内側","sym":"深い色移り","v":"不可"},{"id":"n62","m":"エナメル","p":"全体","sym":"色移り","v":"直る"},{"id":"n9","m":"レザー","p":"本体・内装","sym":"ボールペン跡・シミ","v":"軽減のみ"},{"id":"n17","m":"レザー","p":"凹凸のある革（赤系）","sym":"色ムラ・汚れ","v":"直る"},{"id":"s9","m":"レザー","p":"本体全体","sym":"型崩れ・反り返り","v":"直る"},{"id":"s10","m":"レザー","p":"凹んだ箇所","sym":"凹み傷","v":"軽減のみ"},{"id":"n25","m":"レザー","p":"光沢のある革の面・角","sym":"スレ傷・引っかき傷","v":"直る"},{"id":"n4","m":"レザー","p":"バッグの角","sym":"角の色あせ","v":"直る"},{"id":"n32","m":"レザー","p":"バッグの角","sym":"角の凹凸","v":"直る"},{"id":"n18","m":"レザー","p":"破れ・欠けた箇所","sym":"欠け・穴あき","v":"軽減のみ"},{"id":"n19","m":"レザー","p":"持ち手","sym":"ハンドルのひび割れ","v":"軽減のみ"},{"id":"n33","m":"レザー","p":"持ち手の付け根","sym":"持ち手の折れ","v":"直る"},{"id":"n42","m":"レザー","p":"角・擦れて平らになった面","sym":"シボの摩耗","v":"直る"},{"id":"n27","m":"レザー","p":"イニシャルの箇所","sym":"イニシャルの箔","v":"直る"},{"id":"n30","m":"レザー","p":"バッグのフチ（パイピング）","sym":"パイピングの潰れ","v":"直る"},{"id":"n44","m":"レザー","p":"バッグの角・フチ","sym":"パイピングの芯の欠損","v":"直る"},{"id":"n49","m":"レザー","p":"財布・ベルトの合わせ目","sym":"ステッチのほつれ","v":"直る"},{"id":"n50","m":"レザー","p":"チェーンの革紐","sym":"革紐の色落ち","v":"直る"},{"id":"n51","m":"レザー","p":"ラメ入りの革","sym":"ラメの色あせ","v":"直る"},{"id":"n11","m":"レザー","p":"パンチングレザー","sym":"パンチングの色あせ","v":"直る"},{"id":"n3","m":"レザー","p":"ステッチのある面","sym":"ステッチへの色移り","v":"直る"},{"id":"n13","m":"レザー","p":"幅2cm未満の肩紐","sym":"細い紐の補色","v":"直る"},{"id":"s3","m":"レザー","p":"財布の内側","sym":"内側の色落ち","v":"軽減のみ"},{"id":"n53","m":"レザー","p":"持ち手","sym":"ハンドルの波打ち","v":"軽減のみ"},{"id":"n64","m":"レザー","p":"内装","sym":"補色後の貼り付き","v":"直る"},{"id":"n68","m":"レザー","p":"ショルダーの付け根","sym":"革の抜け","v":"直る"},{"id":"n43","m":"内装","p":"ポケット","sym":"ポケットの加水分解","v":"直る"},{"id":"s11","m":"内装","p":"内側全体（明るい色）","sym":"内装の色あせ","v":"直る"},{"id":"s8","m":"内装","p":"カード段","sym":"カード段のスレ","v":"軽減のみ"},{"id":"s6","m":"内装","p":"小銭入れの中","sym":"小銭入れの色あせ","v":"直る"},{"id":"n20","m":"内装","p":"ベージュの内装","sym":"落ちない黒ずみ","v":"直る"},{"id":"n24","m":"内装","p":"茶色の内装","sym":"こすれ汚れ","v":"直る"},{"id":"n21","m":"内装","p":"内装の刻印ロゴ","sym":"箔押しロゴのかすれ","v":"直る"},{"id":"n5","m":"内装","p":"起毛素材の内装","sym":"毛玉・色ムラ","v":"直る"},{"id":"n14","m":"内装","p":"起毛素材の内装（赤系）","sym":"白いカビ","v":"直る"},{"id":"n23","m":"内装","p":"内袋・裏地","sym":"内袋の染み","v":"軽減のみ"},{"id":"n10","m":"内装","p":"内装・ポケット","sym":"におい","v":"軽減のみ"},{"id":"n16","m":"内装","p":"起毛素材の内装","sym":"濃い黒ずみ","v":"軽減のみ"},{"id":"n52","m":"内装","p":"内装の縫製部分","sym":"生地の欠損","v":"不可"},{"id":"n47","m":"生地・ナイロン","p":"ハンドル・本体","sym":"表面のベタつき","v":"直る"},{"id":"n38","m":"生地・ナイロン","p":"本体全体","sym":"色あせ・ムラ","v":"直る"},{"id":"n36","m":"生地・ナイロン","p":"本体全体・内装","sym":"カビのにおい","v":"直る"},{"id":"n46","m":"生地・ナイロン","p":"デニム地","sym":"デニムの白化","v":"直る"},{"id":"s4","m":"生地・ナイロン","p":"トートバッグ本体","sym":"全体の黒ずみ","v":"軽減のみ"},{"id":"s5","m":"生地・ナイロン","p":"小銭入れ・生地部分","sym":"軽い黒ずみ","v":"直る"},{"id":"s7","m":"生地・ナイロン","p":"ファスナー周り","sym":"ファスナー周りの黒ずみ","v":"軽減のみ"},{"id":"n22","m":"生地・ナイロン","p":"ショルダーテープ・持ち手","sym":"毛羽立ち・ほつれ","v":"直る"},{"id":"n56","m":"生地・ナイロン","p":"内装のコーティング面","sym":"コーティングの剥がれ","v":"直る"},{"id":"n60","m":"生地・ナイロン","p":"ストロー素材","sym":"ストロー素材のカビ・シミ","v":"直る"},{"id":"n15","m":"エキゾチック","p":"リザード","sym":"ウロコの剥がれ・裂け","v":"直る"},{"id":"n66","m":"エキゾチック","p":"パイソン","sym":"ウロコの欠け","v":"直る"},{"id":"n67","m":"エキゾチック","p":"クロコダイル","sym":"色あせ","v":"直る"},{"id":"n48","m":"起毛","p":"ブーツ・本体","sym":"黒ずみ・カビ","v":"直る"},{"id":"n45","m":"起毛","p":"角・擦れた箇所","sym":"毛の抜け","v":"直る"},{"id":"n69","m":"起毛","p":"全体","sym":"白化・色あせ","v":"直る"},{"id":"t31","m":"共通","p":"作業の順番","sym":"補色前の下準備","v":"技法"},{"id":"t9","m":"共通","p":"色の調合","sym":"色の作り方","v":"技法"},{"id":"t6","m":"共通","p":"重ね塗り","sym":"ムラが消えない","v":"技法"},{"id":"t10","m":"共通","p":"塗り方","sym":"塗り跡が残る","v":"技法"},{"id":"t7","m":"共通","p":"生地の補色","sym":"かすれ塗り","v":"技法"},{"id":"t1","m":"共通","p":"エアブラシ","sym":"エアブラシの使い方","v":"技法"},{"id":"t15","m":"共通","p":"エアブラシ","sym":"エアブラシの詰まり","v":"技法"},{"id":"t3","m":"共通","p":"仕上げ","sym":"艶出しの仕方","v":"技法"},{"id":"t5","m":"共通","p":"仕上げ","sym":"艶が足りないとき","v":"技法"},{"id":"t8","m":"共通","p":"仕上げ","sym":"艶出しスプレーの使い方","v":"技法"},{"id":"t13","m":"共通","p":"仕上げ","sym":"削った箇所の白い色抜け","v":"技法"},{"id":"t14","m":"共通","p":"乾燥","sym":"乾かし方の使い分け","v":"技法"},{"id":"t16","m":"共通","p":"削り","sym":"細かい箇所の削り方","v":"技法"},{"id":"t32","m":"共通","p":"削り","sym":"ルーターの使い方","v":"技法"},{"id":"t17","m":"共通","p":"養生","sym":"養生テープの使い方","v":"技法"},{"id":"t4","m":"共通","p":"相談の仕方","sym":"色を相談するときの伝え方","v":"技法"},{"id":"t2","m":"共通","p":"ロゴ周り","sym":"ロゴ周りの補色","v":"技法"},{"id":"t36","m":"共通","p":"仕上げ","sym":"塗った箇所のテカリ","v":"技法"}];
+
+/* ───────── 名寄せ（判定台と同じロジック） ───────── */
+const SIZE_TAIL = /(PM|MM|GM|BB|NM)$/i;
+const SIZE_NUM_TAIL = /(25|26|27|28|30|32|33|35|40|45|50|55|60|65|70)$/;
+const JUNK_TAIL = /(付き|付|旧|新|型|用|セット|まとめ|\/|／|・|-|ー)+$/;
+const JUNK_HEAD = /^(N|M|▼|■|●|★|◆|☆|×|◎|○)+/;
+
+function normalize(name){
+  let s = String(name);
+  s = s.replace(/[（(\[【].*?[)）\]】]/g, ' ');
+  s = s.replace(/[#＃♯*※]/g, ' ');
+  s = s.replace(/\b[MNRQ]\d{4,6}\b/g, ' ');
+  s = s.replace(/\b[A-Z]{2}\d{3,4}\b/g, ' ');
+  s = s.replace(/\b\d{3,4}[A-Z]{2}\b/g, ' ');
+  s = s.replace(/\b\d{2,3}\s*(cm|CM|㎝|mm|㎜)\b/g, ' ');
+  for (const w of NZ.NOISE) s = s.split(w).join(' ');
+  for (let i = 0; i < 3; i++) for (const w of NZ.GARA) s = s.split(w).join(' ');
+  s = s.replace(/[・･]/g, '').replace(/[\s　]+/g, '');
+  s = s.split('ヴィトン').join('');
+  s = s.split('スピーディー').join('スピーディ');
+  s = s.split('レポーター').join('リポーター');
+  s = s.split('モンソー').join('モンソ').split('オルセー').join('オルセ');
+  for (let i = 0; i < 3; i++) for (const w of NZ.GARA) s = s.split(w).join('');
+  s = s.replace(/[A-Za-z]{4,}/g, '').replace(/\d{2,}/g, '');
+  return s.trim();
+}
+function cleanModel(m){
+  let size = '';
+  for (let i = 0; i < 4; i++){
+    const before = m;
+    m = m.replace(JUNK_HEAD, '').replace(JUNK_TAIL, '');
+    const t = SIZE_TAIL.exec(m);
+    if (t && m.length > t[1].length){ size = size || t[1].toUpperCase(); m = m.slice(0, t.index); }
+    const n = SIZE_NUM_TAIL.exec(m);
+    if (n && m.length > n[1].length){ size = size || n[1]; m = m.slice(0, n.index); }
+    m = m.trim();
+    if (m === before) break;
+  }
+  m = NZ.ALIAS[m] || m; m = NZ.ALIAS[m] || m;
+  return [m, size];
+}
+function pickSize(name, model){
+  const s = String(name).replace(/[\s　・]/g, '');
+  const i = s.indexOf(model);
+  if (i < 0) return '';
+  const tail = s.slice(i + model.length, i + model.length + 4);
+  let m = /^(PM|MM|GM|BB|NM)/i.exec(tail);
+  if (m) return m[1].toUpperCase();
+  m = /^(\d{2})/.exec(tail);
+  if (m && NZ.SIZE.includes(m[1])) return m[1];
+  return '';
+}
+const VOCAB = [...new Set([...NZ.SEED, ...LIMITS.map(l => l.k.split(' ')[0])])].sort((a,b) => b.length - a.length);
+
+function modelKey(name){
+  const n = normalize(name);
+  let hit = '';
+  for (const v of VOCAB) if (v && n.includes(v)){ hit = v; break; }
+  if (!hit) return null;
+  let [m, size] = cleanModel(hit);
+  if (!size) size = pickSize(name, hit);
+  let gara = '';
+  for (const g of NZ.GARA) if (String(name).includes(g)){ gara = g; break; }
+  return [m, size, gara].filter(Boolean).join(' ');
+}
+const LIMMAP = {}; for (const l of LIMITS) LIMMAP[l.k] = l;
+
+const BRANDS = [
+  ['ルイヴィトン','LOUIS VUITTON'], ['シャネル','CHANEL'], ['エルメス','HERMES'],
+  ['グッチ','GUCCI'], ['プラダ','PRADA'], ['セリーヌ','CELINE'], ['ディオール','DIOR'],
+  ['フェンディ','FENDI'], ['バレンシアガ','BALENCIAGA'], ['ロエベ','LOEWE'],
+  ['ボッテガ','BOTTEGA'], ['ミュウミュウ','MIU MIU'], ['サンローラン','SAINT LAURENT'],
+  ['バーバリー','BURBERRY'], ['コーチ','COACH'], ['トリー','TORY'], ['ゴヤール','GOYARD']
+];
+function brandOf(name){
+  const u = String(name).toUpperCase();
+  for (const [ja, en] of BRANDS) if (u.includes(en)) return ja;
+  return 'その他';
+}
+
+/* ───────── 状態 ───────── */
+let rows = [];            // 読み込んだ商品
+let files = [];           // 読み込んだファイル名
+let claims = {};          // itemId -> {by, name}
+let me = null, myName = 'あなた';
+let db = null, userCap = null;
+let mode = 'bid';         // bid | all
+let urlTpl = '';          // 商品ページのURLの形（{id} が入る）
+
+function itemUrl(r){ return urlTpl ? urlTpl.replace('{id}', r.id) : ''; }
+
+function showUrl(){
+  document.getElementById('urlTpl').value = urlTpl;
+  document.getElementById('urlOk').textContent = urlTpl ? '覚えました' : '';
+}
+let sortKey = 'order', sortDir = 1;
+
+/* ───────── CSV読み込み ───────── */
+function readCsv(file){
+  return new Promise((resolve) => {
+    const r = new FileReader();
+    r.onload = () => {
+      let text;
+      try { text = new TextDecoder('shift-jis').decode(r.result); }
+      catch(e){ text = new TextDecoder('utf-8').decode(r.result); }
+      if (!text.includes('商品ID')) {
+        try { text = new TextDecoder('utf-8').decode(r.result); } catch(e){}
+      }
+      const parsed = Papa.parse(text, { header:true, skipEmptyLines:true });
+      resolve(parsed.data);
+    };
+    r.readAsArrayBuffer(file);
+  });
+}
+
+async function loadFiles(list){
+  const seen = new Set(rows.map(r => r.id));
+  let added = 0, dup = 0;
+  for (const f of list){
+    if (files.includes(f.name)){ dup++; continue; }
+    const data = await readCsv(f);
+    for (const d of data){
+      const id = String(d['商品ID'] || '').trim();
+      if (!id || id === 'Item ID') continue;
+      if (seen.has(id)) continue;
+      seen.add(id);
+      const name = String(d['商品名'] || '');
+      const key = modelKey(name);
+      const lim = key ? LIMMAP[key] : null;
+      const start = parseInt(String(d['開始価格'] || '0').replace(/[^\d]/g, ''), 10) || 0;
+      rows.push({
+        id, no: parseInt(d['出品順'] || '0', 10) || 0,
+        mgmt: String(d['商品管理番号'] || ''),
+        name, rank: String(d['ランク'] || '').trim(),
+        start, key, baseLimit: lim ? lim.ub : null, limit: null,
+        fix: !['N','S','A'].includes(String(d['ランク']||'').trim()),
+        syms: [], bidded: false,
+        mq1: lim ? lim.mq1 : 0, mm: lim ? lim.mm : 0, mq3: lim ? lim.mq3 : 0,
+        m3: lim ? lim.m3 : 0, m3est: lim ? lim.m3est : 1,
+        date: String(d['開始予定日'] || ''), lot: f.name, brand: brandOf(name)
+      });
+      added++;
+    }
+    files.push(f.name);
+  }
+  render();
+  if (dup) flash(`${dup}個は読み込み済みのファイルなので飛ばしました`);
+}
+function flash(msg){
+  const w = document.getElementById('warn');
+  w.innerHTML = `<div class="warnbox">${msg}</div>`;
+  setTimeout(() => { w.innerHTML = ''; }, 6000);
+}
+
+/* ───────── 判定 ───────── */
+function fee(p){ return p<=10000?500 : p<50000?1000 : p<100000?2000 : 4000; }
+function cost(b){ return Math.round(b*1.1 + fee(b)*1.1 + 1000); }
+function net(v){ return v*0.9 - 900; }
+// 落札額 b で落として、売値 sell で売ったときの手残り
+function gain(b, sell){ return Math.round(net(sell) - cost(b)); }
+
+// ランクごとの売値の取り方
+const RANK_HI = ['N','S','A','AB'];     // 状態がいい
+const RANK_LO = ['C','D','F'];          // 状態が悪い
+function repairFee(){ return parseInt(document.getElementById('repair').value,10) || 0; }
+
+// fix=true → 直して「目立った傷なし」で売る。fix=false → そのままの状態で売る
+function sellMid(r, fix){
+  if (r.baseLimit === null) return 0;
+  if (fix) return r.m3;
+  if (RANK_HI.includes(r.rank)) return r.m3;
+  if (RANK_LO.includes(r.rank)) return r.mq1;
+  return r.mm;
+}
+function sellLow(r, fix){
+  if (r.baseLimit === null) return 0;
+  if (fix || RANK_HI.includes(r.rank)) return r.mm;
+  if (RANK_LO.includes(r.rank)) return Math.round(r.mq1 * 0.85);
+  return r.mq1;
+}
+function extraCost(fix){ return fix ? repairFee() : 0; }
+function limitAt(r, fix){
+  if (r.baseLimit === null) return null;
+  const v = (net(sellMid(r, fix)) - 10000 - extraCost(fix) - 1100) / 1.1;
+  return Math.max(0, Math.round(v / 1000) * 1000);
+}
+function loAt(r, fix){
+  const b = limitAt(r, fix);
+  return Math.min(gain(b, sellLow(r, fix)), gain(r.start, sellLow(r, fix))) - extraCost(fix);
+}
+function hiAt(r, fix){ return gain(r.start, sellMid(r, fix)) - extraCost(fix); }
+
+function limitOf(r){ return limitAt(r, r.fix); }
+function lowGain(r){ return loAt(r, r.fix); }
+function highGain(r){ return hiAt(r, r.fix); }
+function money(n){ return (n < 0 ? '−' : '+') + Math.abs(n).toLocaleString(); }
+function rangeOf(r, fix){
+  const lo = loAt(r, fix), hi = hiAt(r, fix);
+  const c = lo < 0 ? 'var(--ng)' : 'var(--ink2)';
+  return `<span style="color:${c}">${money(lo)}</span><span class="dim"> 〜 </span>` +
+         `<span style="color:var(--go);font-weight:800">${money(hi)}</span>`;
+}
+function rangeCell(r){
+  if (r.baseLimit === null) return '—';
+  const line = (fix, on) => {
+    const lo = loAt(r, fix), hi = hiAt(r, fix), lim = limitAt(r, fix) || 0;
+    return `<div class="gline${on ? ' on' : ' off2'}">` +
+      `<span class="gmark">${on ? '●' : '○'}</span>` +
+      `<span class="glab">${fix ? '直してから売る' : '直さずそのまま売る'}</span>` +
+      `<span class="glim">${lim.toLocaleString()}<small>まで入れる</small></span>` +
+      `<span class="gnum" style="color:${lo < 0 ? 'var(--ng)' : 'var(--ink)'}">${money(lo)}</span>` +
+      `<span class="gto">〜</span>` +
+      `<span class="gnum go">${money(hi)}</span>` +
+      `</div>`;
+  };
+  const d = (limitAt(r, true) || 0) - (limitAt(r, false) || 0);
+  const diff = d === 0 ? '<div class="gdiff same">直しても変わらない</div>'
+    : d > 0 ? `<div class="gdiff">直せば <b>${d.toLocaleString()}円</b> 高く入れられる</div>`
+            : `<div class="gdiff neg">直さない方が <b>${Math.abs(d).toLocaleString()}円</b> 高く入れられる</div>`;
+  return line(true, r.fix) + line(false, !r.fix) + diff;
+}
+
+function bidable(r){ return r.limit !== null && r.start <= r.limit; }
+function myRows(){ return rows.filter(r => bidable(r) && claims[r.id] && claims[r.id].by === me); }
+function myTotal(){ return myRows().reduce((s, r) => s + cost(r.limit), 0); }
+function budget(){ return parseInt(document.getElementById('budget').value, 10) || 0; }
+
+function recalc(){ for (const r of rows) r.limit = limitOf(r); }
+
+function visible(){
+  recalc();
+  let v = rows.slice();
+  if (mode === 'bid') v = v.filter(bidable);
+  else if (mode === 'match') v = v.filter(r => r.limit !== null);
+  const dir = sortDir;
+  v.sort((a, b) => {
+    let x, y;
+    if (sortKey === 'order'){ x = a.no; y = b.no; }
+    else if (sortKey === 'start'){ x = a.start; y = b.start; }
+    else if (sortKey === 'limit'){ x = a.limit || 0; y = b.limit || 0; }
+    else if (sortKey === 'room'){ x = (a.limit || 0) - a.start; y = (b.limit || 0) - b.start; }
+    else if (sortKey === 'gainStart'){ x = a.limit!==null?highGain(a):-1e9; y = b.limit!==null?highGain(b):-1e9; }
+    else { return String(a.key || '').localeCompare(String(b.key || ''), 'ja') * dir; }
+    return (x - y) * dir;
+  });
+  return v;
+}
+
+function render(){
+  const list = visible();
+  const tb = document.getElementById('tb');
+  document.getElementById('tableWrap').hidden = rows.length === 0;
+  document.getElementById('empty').hidden = rows.length !== 0;
+  document.getElementById('stats').hidden = rows.length === 0;
+
+  const bids = rows.filter(bidable);
+  // ブランド内訳
+  const bc = {};
+  for (const r of rows) bc[r.brand] = (bc[r.brand] || 0) + 1;
+  document.getElementById('brands').innerHTML = Object.entries(bc)
+    .sort((a, b) => b[1] - a[1])
+    .map(([b, n]) => {
+      const has = rows.some(r => r.brand === b && r.limit !== null);
+      return `<span class="brandchip${has ? '' : ' no'}">${b} <b>${n}</b>件${has ? '' : '（判定表なし）'}</span>`;
+    }).join('');
+  document.getElementById('budgetBox').hidden = rows.length === 0;
+
+  const lbox = document.getElementById('loaded');
+  lbox.innerHTML = '';
+  for (const f of files){
+    const n = rows.filter(r => r.lot === f).length;
+    const el = document.createElement('span');
+    el.className = 'lot';
+    el.innerHTML = `<span>読込済 <b>${f.replace(/\.csv$/i,'').slice(0,30)}</b> ${n}件</span>`;
+    const x = document.createElement('button');
+    x.type = 'button'; x.textContent = '×'; x.title = 'このファイルを消す';
+    x.addEventListener('click', () => {
+      rows = rows.filter(r => r.lot !== f);
+      files = files.filter(v => v !== f);
+      render();
+    });
+    el.appendChild(x);
+    lbox.appendChild(el);
+  }
+
+  // 内訳
+  const bd = document.getElementById('breakdown');
+  bd.hidden = rows.length === 0;
+  if (rows.length){
+    const matched = rows.filter(r => r.limit !== null).length;
+    const over = rows.filter(r => r.limit !== null && r.start > r.limit).length;
+    const nomodel = rows.length - matched;
+    bd.innerHTML =
+      `読み込み <b>${rows.length}</b>件` +
+      `<span class="arrow">→</span>判定表にあった <b>${matched}</b>件` +
+      `<span class="arrow">→</span><span style="color:var(--go)">入札する <b>${bids.length}</b>件</span>` +
+      (bids.length === 0
+        ? `<br><span class="bad">入札できる商品がありません。</span>` +
+          (nomodel === rows.length
+            ? ' このリストのモデルは判定表に1つも入っていません（別ブランドや財布などのカテゴリの可能性）。'
+            : ` 判定表になかったのが ${nomodel}件、開始価格が上限を超えていたのが ${over}件です。`)
+        : (nomodel || over ? `<br><span class="dim" style="font-weight:500">外れた内訳：判定表になし ${nomodel}件／開始価格が上限超え ${over}件</span>` : ''));
+  }
+
+  const mine = bids.filter(r => claims[r.id] && claims[r.id].by === me);
+  const sumCost = a => a.reduce((s, r) => s + cost(r.limit), 0);
+  const sumLo   = a => a.reduce((s, r) => s + lowGain(r), 0);
+  const sumHi   = a => a.reduce((s, r) => s + highGain(r), 0);
+  const f = (n) => (n < 0 ? '−¥' : '+¥') + Math.abs(n).toLocaleString();
+  const putRange = (id, lo, hi) => {
+    document.getElementById(id).innerHTML =
+      `<span style="color:${lo<0?'var(--ng)':'var(--ink)'}">${f(lo)}</span>` +
+      `<span style="font-size:14px;color:var(--ink2)"> 〜 </span>` +
+      `<span style="color:var(--go)">${f(hi)}</span>`;
+  };
+  document.getElementById('aBid').textContent = bids.length;
+  document.getElementById('hcount').textContent = rows.length
+    ? `読み込み ${rows.length}件 ／ 入札する ${bids.length}件 ／ 表示中 ${list.length}件`
+    : '判定表 54モデル／8ヶ月・55,001件';
+  document.getElementById('aSum').textContent = '¥' + sumCost(bids).toLocaleString();
+  putRange('aRange', sumLo(bids), sumHi(bids));
+  document.getElementById('sSum').textContent = '¥' + sumCost(mine).toLocaleString();
+  putRange('sRange', sumLo(mine), sumHi(mine));
+  document.getElementById('sMine').textContent = mine.length;
+  document.getElementById('fMine').textContent = mine.length;
+  const who = {};
+  for (const r of bids){ const c = claims[r.id]; if (c && c.by !== me) who[c.name || '?'] = (who[c.name || '?'] || 0) + 1; }
+  document.getElementById('byWho').innerHTML = Object.entries(who)
+    .map(([n, c]) => `${n} <b class="num">${c}</b>件`).join('　') || '';
+  document.getElementById('fFree').textContent = bids.filter(r => !claims[r.id]).length;
+  document.getElementById('dlAll').disabled = mine.length === 0;
+
+  const tot = myTotal(), bud = budget();
+  const pct = bud ? Math.min(100, Math.round(tot / bud * 100)) : 0;
+  const over = bud > 0 && tot > bud;
+  document.getElementById('bar2f').style.width = pct + '%';
+  document.getElementById('bar2').className = 'bar2' + (over ? ' over' : '');
+  document.getElementById('budgetAmt').className = 'amt' + (over ? ' over' : '');
+  document.getElementById('budgetAmt').innerHTML =
+    `<b>¥${tot.toLocaleString()}</b> / ¥${bud.toLocaleString()}` +
+    (over ? `　<span style="color:var(--ng);font-weight:600">¥${(tot-bud).toLocaleString()} 超過</span>`
+          : `　残り ¥${(bud-tot).toLocaleString()}`);
+
+  tb.innerHTML = '';
+  const frag = document.createDocumentFragment();
+  for (const r of list){
+    const c = claims[r.id];
+    const isMine = c && c.by === me;
+    const tr = document.createElement('tr');
+    if (c) tr.className = isMine ? 'mine' : 'taken';
+
+    tr.innerHTML =
+      `<td class="l"></td>` +
+      `<td class="l num dim">${r.no}</td>` +
+      `<td class="l"><span class="model">${r.key || '—'}</span>${r.bidded ? '<span class="bidded">入札済</span>' : ''}${r.brand !== 'ルイヴィトン' ? ' <span class="dim" style="font-size:11px">' + r.brand + '</span>' : ''}</td>` +
+      `<td class="l"><span class="rk rk-${r.rank}">${r.rank}</span></td>` +
+      `<td class="num dim">${r.start.toLocaleString()}</td>` +
+      `<td class="l range">${rangeCell(r)}</td>` +
+      `<td class="l"></td>` +
+      `<td class="l nm"><span class="name" title="${r.name.replace(/"/g,'')}">${r.name}</span></td>` +
+      `<td class="l"></td>`;
+    tr.children[0].appendChild(thumbEl(r));
+    const fixCell = tr.children[6];
+    if (urlTpl){
+      const a = document.createElement('a');
+      a.className = 'pic'; a.target = '_blank'; a.rel = 'noopener';
+      a.href = itemUrl(r); a.textContent = '写真';
+      a.style.marginRight = '6px';
+      fixCell.appendChild(a);
+    }
+    fixCell.appendChild(makeFix(r));
+    const cell = tr.lastElementChild;
+    if (!bidable(r)){
+      cell.innerHTML = '<span class="who">—</span>';
+    } else if (c && !isMine){
+      cell.innerHTML = `<span class="who"><b>${c.name || '他の人'}</b> が担当</span>`;
+    } else {
+      const btn = document.createElement('button');
+      btn.className = 'claim' + (isMine ? '' : ' off');
+      btn.type = 'button';
+      btn.textContent = isMine ? '自分が担当' : '担当する';
+      btn.addEventListener('click', () => toggleClaim(r, btn));
+      cell.appendChild(btn);
+    }
+    frag.appendChild(tr);
+  }
+  tb.appendChild(frag);
+  renderCards(list);
+}
+
+function makeFix(r){
+  const wrap = document.createElement('span');
+  wrap.style.cssText = 'display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap';
+  const b = document.createElement('button');
+  b.className = 'tg'; b.type = 'button';
+  b.setAttribute('aria-pressed', r.fix ? 'true' : 'false');
+  b.textContent = r.fix ? '直す' : '直さない';
+  b.addEventListener('click', () => { r.fix = !r.fix; render(); });
+  wrap.appendChild(b);
+  if (r.fix){
+    const sb = document.createElement('button');
+    sb.className = 'symbtn' + (r.syms.length ? ' has' : '');
+    sb.type = 'button';
+    sb.textContent = r.syms.length ? `直す所 ${r.syms.length}` : '直す所を選ぶ';
+    sb.addEventListener('click', () => openSym(r));
+    wrap.appendChild(sb);
+  }
+  return wrap;
+}
+
+/* ── 症状ピッカー ── */
+let symTarget = null;
+function openSym(r){
+  symTarget = r;
+  document.getElementById('symTitle').textContent = r.key || '直す所を選ぶ';
+  document.getElementById('symSub').textContent = r.name.slice(0, 70);
+  const body = document.getElementById('symBody');
+  body.innerHTML = '';
+  const mats = {};
+  for (const s of SYMPTOMS){ (mats[s.m] = mats[s.m] || []).push(s); }
+  const order = ['レザー','ヌメ革','内装','金具','コバ','プリント','エナメル','生地・ナイロン','起毛','エキゾチック','共通'];
+  for (const mat of order){
+    const arr = mats[mat]; if (!arr) continue;
+    const g = document.createElement('div');
+    g.className = 'matgroup';
+    g.innerHTML = `<h4>${mat}</h4>`;
+    const list = document.createElement('div');
+    list.className = 'symlist';
+    for (const sy of arr){
+      const b = document.createElement('button');
+      b.className = 'sym' + (sy.v === '不可' ? ' x' : '');
+      b.type = 'button';
+      b.setAttribute('aria-pressed', r.syms.includes(sy.id) ? 'true' : 'false');
+      const mark = sy.v === '直る' ? '◎' : sy.v === '軽減のみ' ? '△' : sy.v === '不可' ? '×' : '／';
+      b.innerHTML = `${mark} ${sy.sym}<small>${sy.p}</small>`;
+      b.addEventListener('click', () => {
+        const i = r.syms.indexOf(sy.id);
+        if (i >= 0) r.syms.splice(i, 1); else r.syms.push(sy.id);
+        b.setAttribute('aria-pressed', r.syms.includes(sy.id) ? 'true' : 'false');
+      });
+      list.appendChild(b);
+    }
+    g.appendChild(list);
+    body.appendChild(g);
+  }
+  document.getElementById('symModal').hidden = false;
+}
+document.getElementById('symDone').addEventListener('click', () => {
+  document.getElementById('symModal').hidden = true; symTarget = null; render();
+});
+document.getElementById('symClear').addEventListener('click', () => {
+  if (symTarget) symTarget.syms = [];
+  document.getElementById('symModal').hidden = true; symTarget = null; render();
+});
+document.getElementById('symModal').addEventListener('click', e => {
+  if (e.target.id === 'symModal'){ document.getElementById('symModal').hidden = true; symTarget = null; render(); }
+});
+function makeClaimBtn(r){
+  const c = claims[r.id], isMine = c && c.by === me;
+  if (c && !isMine){
+    const sp = document.createElement('span');
+    sp.className = 'who'; sp.innerHTML = `<b>${c.name || '他の人'}</b> が担当`;
+    return sp;
+  }
+  const btn = document.createElement('button');
+  btn.className = 'claim' + (isMine ? '' : ' off');
+  btn.type = 'button';
+  btn.textContent = isMine ? '自分が担当' : '担当する';
+  btn.addEventListener('click', () => toggleClaim(r, btn));
+  return btn;
+}
+function renderCards(list){
+  const box = document.getElementById('cards');
+  box.innerHTML = '';
+  const frag = document.createDocumentFragment();
+  for (const r of list){
+    const c = claims[r.id], isMine = c && c.by === me;
+    const el = document.createElement('div');
+    el.className = 'card' + (c ? (isMine ? ' mine' : ' taken') : '');
+    el.innerHTML =
+      `<div class="top"><span class="mname">${r.key || '—'}</span>` +
+      `<span class="rk rk-${r.rank}">${r.rank}</span>` +
+      `<span class="dim num" style="font-size:11.5px">出品順 ${r.no}</span>` +
+      (r.bidded ? '<span class="bidded">入札済</span>' : '') + `</div>` +
+      `<div class="thumbrow"></div>` +
+      `<div class="full">${r.name}</div>` +
+      `<div class="kv">` +
+        `<div><span>開始価格</span><b>${r.start.toLocaleString()}</b></div>` +
+
+
+      `</div>` +
+      `<div class="range" style="margin-bottom:10px">${rangeCell(r)}</div>` +
+      `<div class="acts"></div>`;
+    const trow = el.querySelector('.thumbrow');
+    const arr = photos[r.mgmt] || [];
+    if (arr.length){ for (let i = 0; i < Math.min(3, arr.length); i++){
+      const u = photoUrl(r, i);
+      const img = document.createElement('img');
+      img.className = 'thumb'; img.src = u; img.loading = 'lazy'; img.alt = '';
+      img.addEventListener('click', () => { document.getElementById('lightimg').src = u;
+        document.getElementById('lightbox').hidden = false; });
+      trow.appendChild(img);
+    } } else trow.remove();
+    const acts = el.querySelector('.acts');
+    if (urlTpl){
+      const a = document.createElement('a');
+      a.className = 'pic'; a.target = '_blank'; a.rel = 'noopener';
+      a.href = itemUrl(r); a.textContent = '写真を見る';
+      acts.appendChild(a);
+    }
+    acts.appendChild(makeClaimBtn(r));
+    if (bidable(r)) acts.appendChild(makeFix(r));
+    frag.appendChild(el);
+  }
+  box.appendChild(frag);
+}
+
+/* ───────── 担当の取り合い（共有DB） ───────── */
+const FB_URL = "https://ecooku-29416-default-rtdb.asia-southeast1.firebasedatabase.app";
+let fdb = null;
+
+async function initDb(){
+  // 名前（この端末に保存）
+  try { myName = localStorage.getItem('ecoauc.name') || ''; } catch(e){ myName = ''; }
+  const nameInput = document.getElementById('myname');
+  nameInput.value = myName;
+  me = myName || null;
+  nameInput.addEventListener('input', () => {
+    myName = nameInput.value.trim();
+    me = myName || null;
+    try { localStorage.setItem('ecoauc.name', myName); } catch(e){}
+    render();
+  });
+
+  const cn = document.getElementById('conn');
+  try {
+    firebase.initializeApp({ databaseURL: FB_URL });
+    fdb = firebase.database();
+    fdb.ref('.info/connected').on('value', snap => {
+      const ok = snap.val() === true;
+      cn.className = 'conn ' + (ok ? 'ok' : 'ng');
+      cn.textContent = ok ? 'つながっています' : 'つながっていません';
+    });
+    fdb.ref('config/itemUrl').on('value', snap => {
+      const v = snap.val();
+      if (v && v.tpl){ urlTpl = v.tpl; showUrl(); render(); }
+    });
+    fdb.ref('claims').on('value', snap => {
+      const v = snap.val() || {};
+      claims = {};
+      for (const k of Object.keys(v)) if (v[k] && v[k].by) claims[k] = v[k];
+      render();
+    });
+    fdb.ref('results').on('value', snap => {
+      results = snap.val() || {};
+      renderResults();
+    });
+  } catch(e){
+    cn.className = 'conn ng';
+    cn.textContent = 'つながっていません';
+  }
+}
+
+function needName(){
+  if (!myName){
+    flash('先に右上の「自分の名前」を入れてください。');
+    document.getElementById('myname').focus();
+    return true;
+  }
+  return false;
+}
+
+async function toggleClaim(r, btn){
+  if (needName()) return;
+  const c = claims[r.id];
+  btn.disabled = true;
+  try { await setClaim(r, !(c && c.by === me)); }
+  catch(e){ flash('担当の記録に失敗しました。もう一度押してください。'); }
+  btn.disabled = false;
+  render();
+}
+
+/* ───────── 商品の写真 ───────── */
+const photos = {};   // 商品管理番号 -> [File, ...]
+const purls  = {};   // File -> objectURL
+
+function addPhotos(list){
+  let n = 0;
+  for (const f of list){
+    if (!/\.(jpe?g|png|webp)$/i.test(f.name)) continue;
+    const m = /(\d{8,})-\d+-/.exec(f.name);
+    if (!m) continue;
+    (photos[m[1]] = photos[m[1]] || []).push(f);
+    n++;
+  }
+  const codes = Object.keys(photos).length;
+  document.getElementById('photoMsg').innerHTML = n
+    ? `写真 <b>${n}</b>枚（商品 ${codes}点分）を読み込みました`
+    : '写真が見つかりませんでした。_files フォルダごと入れてください。';
+  render();
+}
+function photoUrl(r, i){
+  const arr = photos[r.mgmt];
+  if (!arr || !arr[i]) return '';
+  const f = arr[i];
+  if (!purls[f.name]) purls[f.name] = URL.createObjectURL(f);
+  return purls[f.name];
+}
+function thumbEl(r){
+  const u = photoUrl(r, 0);
+  if (!u){ const d = document.createElement('div'); d.className = 'nothumb'; return d; }
+  const img = document.createElement('img');
+  img.className = 'thumb'; img.src = u; img.loading = 'lazy'; img.alt = '';
+  img.addEventListener('click', e => {
+    e.stopPropagation();
+    document.getElementById('lightimg').src = u;
+    document.getElementById('lightbox').hidden = false;
+  });
+  return img;
+}
+document.getElementById('lightbox').addEventListener('click', () => {
+  document.getElementById('lightbox').hidden = true;
+});
+
+const drop3 = document.getElementById('drop3'), file3 = document.getElementById('file3');
+drop3.addEventListener('click', () => file3.click());
+file3.addEventListener('change', e => { addPhotos([...e.target.files]); e.target.value = ''; });
+['dragenter','dragover'].forEach(ev => drop3.addEventListener(ev, e => { e.preventDefault(); drop3.classList.add('on'); }));
+['dragleave','drop'].forEach(ev => drop3.addEventListener(ev, e => { e.preventDefault(); drop3.classList.remove('on'); }));
+drop3.addEventListener('drop', e => { addPhotos([...(e.dataTransfer.files || [])]); });
+const file3b = document.getElementById('file3b');
+document.getElementById('pickImgs').addEventListener('click', () => file3b.click());
+file3b.addEventListener('change', e => { addPhotos([...e.target.files]); e.target.value = ''; });
+
+/* ───────── 落札結果 ───────── */
+let results = {};   // itemId -> {won, price, sold, model, rank, limit, name}
+
+
+
+function numOf(v){ return parseInt(String(v == null ? '' : v).replace(/[^\d]/g, ''), 10) || 0; }
+
+async function loadResultFiles(list){
+  let n = 0;
+  for (const f of list){
+    const data = await readCsv(f);
+    for (const d of data){
+      const keys = Object.keys(d);
+      const idKey = keys.find(k => /商品ID|商品番号|Item ID/i.test(k)) || keys[0];
+      const id = String(d[idKey] || '').trim();
+      if (!id || !/^\d+$/.test(id)) continue;
+      const priceKey = keys.find(k => /落札(価格|金額)|約定|Winning|Hammer/i.test(k));
+      const price = priceKey ? numOf(d[priceKey]) : 0;
+      const nameKey = keys.find(k => /商品名|Item name/i.test(k));
+      const rankKey = keys.find(k => /ランク|Rank/i.test(k));
+      const src = rows.find(r => r.id === id);
+      const rec = {
+        itemId: id, won: price > 0, price,
+        sold: (results[id] && results[id].sold) || 0,
+        model: (src && src.key) || (results[id] && results[id].model) || '',
+        rank: (rankKey ? String(d[rankKey]).trim() : '') || (src && src.rank) || '',
+        limit: (src && src.limit) || (results[id] && results[id].limit) || 0,
+        name: (nameKey ? String(d[nameKey]) : '') || (src && src.name) || '',
+        at: Date.now()
+      };
+      results[id] = rec; n++;
+      if (fdb) { try { await fdb.ref('results/' + id).set(rec); } catch(e){} }
+    }
+  }
+  renderResults();
+  flash(n ? `落札結果を ${n}件 記録しました。` : '落札結果が読み取れませんでした。CSVの形式を送ってください。');
+}
+
+function renderResults(){
+  const arr = Object.values(results);
+  document.getElementById('rwrap').hidden = arr.length === 0;
+  document.getElementById('rstats').hidden = arr.length === 0;
+  if (!arr.length) return;
+  const won = arr.filter(r => r.won);
+  const sold = won.filter(r => r.sold > 0);
+  const profit = sold.reduce((s, r) => s + (Math.round(net(r.sold) - cost(r.price))), 0);
+  const rate = arr.length ? Math.round(won.length / arr.length * 100) : 0;
+  document.getElementById('rstats').innerHTML =
+    `<div class="stat"><span>入札した</span><b class="num">${arr.length}</b></div>` +
+    `<div class="stat go"><span>落札できた</span><b class="num">${won.length}<span style="font-size:15px"> (${rate}%)</span></b></div>` +
+    `<div class="stat"><span>売れた</span><b class="num">${sold.length}</b></div>` +
+    `<div class="stat go"><span>実際の手残り</span><b class="num">${money(profit)}</b></div>`;
+
+  const tb = document.getElementById('rtb');
+  tb.innerHTML = '';
+  for (const r of arr.sort((a, b) => (b.won - a.won) || b.price - a.price)){
+    const tr = document.createElement('tr');
+    const gainNow = r.won && r.sold ? Math.round(net(r.sold) - cost(r.price)) : null;
+    tr.innerHTML =
+      `<td class="l"><span class="model">${r.model || '—'}</span></td>` +
+      `<td class="l"><span class="rk rk-${r.rank}">${r.rank || '—'}</span></td>` +
+      `<td class="num dim">${r.limit ? r.limit.toLocaleString() : '—'}</td>` +
+      `<td class="num bid">${r.won ? r.price.toLocaleString() : '—'}</td>` +
+      `<td class="num dim">${r.won ? cost(r.price).toLocaleString() : '—'}</td>` +
+      `<td></td>` +
+      `<td class="num" style="font-weight:800;color:${gainNow === null ? 'var(--ink2)' : (gainNow < 0 ? 'var(--ng)' : 'var(--go)')}">${gainNow === null ? '—' : money(gainNow)}</td>` +
+      `<td class="l"><span class="st ${r.won ? (r.sold ? 'st-sold' : 'st-win') : 'st-lose'}">${r.won ? (r.sold ? '売れた' : '落札') : '取れず'}</span></td>`;
+    const cell = tr.children[5];
+    if (r.won){
+      const inp = document.createElement('input');
+      inp.className = 'sold num'; inp.type = 'number'; inp.step = '1000';
+      inp.value = r.sold || ''; inp.placeholder = '—';
+      inp.addEventListener('change', async () => {
+        r.sold = parseInt(inp.value, 10) || 0;
+        if (fdb) { try { await fdb.ref('results/' + r.itemId + '/sold').set(r.sold); } catch(e){} }
+        renderResults();
+      });
+      cell.appendChild(inp);
+    } else cell.innerHTML = '<span class="dim">—</span>';
+    tb.appendChild(tr);
+  }
+}
+
+const drop2 = document.getElementById('drop2');
+const file2 = document.getElementById('file2');
+drop2.addEventListener('click', () => file2.click());
+file2.addEventListener('change', e => { loadResultFiles([...e.target.files]); e.target.value = ''; });
+['dragenter','dragover'].forEach(ev => drop2.addEventListener(ev, e => { e.preventDefault(); drop2.classList.add('on'); }));
+['dragleave','drop'].forEach(ev => drop2.addEventListener(ev, e => { e.preventDefault(); drop2.classList.remove('on'); }));
+drop2.addEventListener('drop', e => {
+  const fs = [...(e.dataTransfer.files || [])].filter(f => /\.csv$/i.test(f.name));
+  if (fs.length) loadResultFiles(fs);
+});
+
+/* ───────── 書き出し ───────── */
+function toCsv(list){
+  const head = ['商品ID','商品管理番号','商品名','出品順','ランク','開始価格','事前入札価格','メモ','開始予定日','税額控除対象外'];
+  const lines = [head.join(',')];
+  for (const r of list){
+    const cell = v => {
+      const s = String(v == null ? '' : v);
+      return /[",\n]/.test(s) ? '"' + s.split('"').join('""') + '"' : s;
+    };
+    const memo = r.fix ? ('直す' + (r.syms.length ? ':' + r.syms.join(' ') : '')) : '';
+    lines.push([r.id, r.mgmt, cell(r.name), r.no, r.rank, r.start, r.limit, cell(memo), r.date, 0].join(','));
+  }
+  return lines.join('\r\n');
+}
+document.getElementById('dlAll').addEventListener('click', () => {
+  const mine = rows.filter(r => bidable(r) && claims[r.id] && claims[r.id].by === me)
+                   .sort((a, b) => a.no - b.no);
+  if (!mine.length) return;
+  const blob = new Blob(['\uFEFF' + toCsv(mine)], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'nyusatsu_' + new Date().toISOString().slice(0,10) + '.csv';
+  a.click();
+  for (const r of mine) r.bidded = true;
+  render();
+  setTimeout(() => URL.revokeObjectURL(a.href), 3000);
+});
+async function setClaim(r, on){
+  if (on){
+    const rec = { by: myName, name: myName, model: r.key || '', limit: r.limit || 0,
+      item: r.name.slice(0, 80), at: Date.now() };
+    claims[r.id] = rec;
+    if (fdb) await fdb.ref('claims/' + r.id).set(rec);
+  } else {
+    delete claims[r.id];
+    if (fdb) await fdb.ref('claims/' + r.id).remove();
+  }
+}
+document.getElementById('autoPick').addEventListener('click', async e => {
+  const bud = budget();
+  if (!bud){ flash('予算を入れてください。'); return; }
+  e.target.disabled = true;
+  let tot = myTotal();
+  const free = rows.filter(r => bidable(r) && !claims[r.id])
+    .sort((a, b) => highGain(b) - highGain(a));
+  let n = 0;
+  for (const r of free){
+    if (tot + cost(r.limit) > bud) continue;
+    await setClaim(r, true);
+    tot += cost(r.limit); n++;
+  }
+  e.target.disabled = false;
+  render();
+  flash(n ? `${n}件を担当に入れました（合計 ¥${tot.toLocaleString()}）` : '予算内に入る商品がありませんでした。');
+});
+document.getElementById('autoClear').addEventListener('click', async e => {
+  const mine = myRows();
+  if (!mine.length) return;
+  if (!confirm(`自分の担当 ${mine.length}件をすべて外します。`)) return;
+  e.target.disabled = true;
+  for (const r of mine) await setClaim(r, false);
+  e.target.disabled = false;
+  render();
+});
+document.getElementById('urlSave').addEventListener('click', async () => {
+  const v = document.getElementById('urlTpl').value.trim();
+  if (!v){ urlTpl = ''; showUrl(); render(); return; }
+  // URLの中の数字の並び（商品ID）を {id} に置き換える
+  const ids = rows.map(r => r.id).filter(Boolean);
+  let tpl = v;
+  const hit = ids.find(id => v.includes(id));
+  if (hit) tpl = v.split(hit).join('{id}');
+  else tpl = v.replace(/\d{6,}/, '{id}');
+  if (!tpl.includes('{id}')){ flash('URLの中に商品番号が見つかりません。商品ページのURLをそのまま貼ってください。'); return; }
+  urlTpl = tpl;
+  try { if (fdb) await fdb.ref('config/itemUrl').set({ tpl, at: Date.now() }); } catch(e){}
+  showUrl(); render();
+  flash('覚えました。全部の行に「写真」が出ます。');
+});
+document.getElementById('budget').addEventListener('input', render);
+document.getElementById('repair').addEventListener('input', render);
+document.querySelectorAll('.pre').forEach(b => b.addEventListener('click', () => {
+  document.getElementById('budget').value = b.dataset.b; render();
+}));
+
+document.getElementById('claimAll').addEventListener('click', async e => {
+  const free = visible().filter(r => bidable(r) && !claims[r.id]);
+  if (!free.length){ flash('担当していない商品がありません。'); return; }
+  const tot = free.reduce((s, r) => s + cost(r.limit), 0);
+  if (!confirm(`表示中の ${free.length}件を全部あなたの担当にします。\n全部落ちた場合の支払いは ¥${tot.toLocaleString()} です。`)) return;
+  e.target.disabled = true;
+  for (const r of free) await setClaim(r, true);
+  e.target.disabled = false;
+  render();
+  flash(`${free.length}件を担当に入れました。`);
+});
+
+document.getElementById('clearBtn').addEventListener('click', () => {
+  if (!confirm('読み込んだ商品リストを消します。担当の記録は残ります。')) return;
+  rows = []; files = []; render();
+});
+
+/* ───────── 操作 ───────── */
+const drop = document.getElementById('drop');
+const fileInput = document.getElementById('file');
+drop.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', e => { loadFiles([...e.target.files]); e.target.value = ''; });
+['dragenter','dragover'].forEach(ev => drop.addEventListener(ev, e => {
+  e.preventDefault(); drop.classList.add('on'); }));
+['dragleave','drop'].forEach(ev => drop.addEventListener(ev, e => {
+  e.preventDefault(); drop.classList.remove('on'); }));
+drop.addEventListener('drop', e => {
+  const fs = [...(e.dataTransfer.files || [])].filter(f => /\.csv$/i.test(f.name));
+  if (fs.length) loadFiles(fs);
+});
+
+const denBox = document.getElementById('denChips');
+[['','ゆったり'],['compact','ぎゅっと']].forEach(([v,l]) => {
+  const b = document.createElement('button');
+  b.className = 'chip'; b.type = 'button'; b.textContent = l;
+  b.setAttribute('aria-pressed', v === '' ? 'true' : 'false');
+  b.addEventListener('click', () => {
+    document.body.classList.toggle('compact', v === 'compact');
+    denBox.querySelectorAll('.chip').forEach(c => c.setAttribute('aria-pressed','false'));
+    b.setAttribute('aria-pressed','true');
+  });
+  denBox.appendChild(b);
+});
+
+const modeBox = document.getElementById('modeChips');
+[['bid','入札する分だけ'],['all','読み込んだ全部']].forEach(([v,l]) => {
+  const b = document.createElement('button');
+  b.className = 'chip'; b.type = 'button'; b.textContent = l;
+  b.setAttribute('aria-pressed', v === 'bid' ? 'true' : 'false');
+  b.addEventListener('click', () => {
+    mode = v;
+    modeBox.querySelectorAll('.chip').forEach(c => c.setAttribute('aria-pressed','false'));
+    b.setAttribute('aria-pressed','true');
+    render();
+  });
+  modeBox.appendChild(b);
+});
+
+document.querySelectorAll('thead th[data-sort]').forEach(th => {
+  th.addEventListener('click', () => {
+    const k = th.dataset.sort;
+    if (sortKey === k) sortDir *= -1; else { sortKey = k; sortDir = (k === 'room' || k === 'limit') ? -1 : 1; }
+    render();
+  });
+});
+document.getElementById('themeBtn').addEventListener('click', () => {
+  const dark = document.documentElement.getAttribute('data-theme') === 'dark';
+  document.documentElement.setAttribute('data-theme', dark ? 'light' : 'dark');
+});
+
+render();
+initDb();
+</script>
+</body>
+</html>
