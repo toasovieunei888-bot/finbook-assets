@@ -8,8 +8,8 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/firebase@9.23.0/compat/firebase-app.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/firebase@9.23.0/compat/firebase-database.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 <style>
 :root{
   --paper:#FBF2E4; --panel:#FFFDF9; --ink:#14100B; --ink2:#5A5147;
@@ -1057,13 +1057,18 @@ async function initDb(){
   });
 
   const cn = document.getElementById('conn');
+  if (typeof firebase === 'undefined'){
+    cn.className = 'conn ng';
+    cn.textContent = '共有機能が読み込めません';
+    return;
+  }
   try {
     firebase.initializeApp({ databaseURL: FB_URL });
     fdb = firebase.database();
     fdb.ref('.info/connected').on('value', snap => {
       const ok = snap.val() === true;
       cn.className = 'conn ' + (ok ? 'ok' : 'ng');
-      cn.textContent = ok ? 'つながっています' : 'つながっていません';
+      cn.textContent = ok ? '共有できています' : 'つながり待ち…';
     });
     fdb.ref('config/itemUrl').on('value', snap => {
       const v = snap.val();
@@ -1280,13 +1285,28 @@ document.getElementById('dlAll').addEventListener('click', () => {
 async function setClaim(r, on){
   if (on){
     const rec = { by: myName, name: myName, model: r.key || '', limit: r.limit || 0,
-      item: r.name.slice(0, 80), at: Date.now() };
+      item: String(r.name || '').slice(0, 80), at: Date.now() };
     claims[r.id] = rec;
-    if (fdb) await fdb.ref('claims/' + r.id).set(rec);
+    if (fdb){
+      try { await fdb.ref('claims/' + r.id).set(rec); markOk(); }
+      catch(e){ markNg(e); throw e; }
+    }
   } else {
     delete claims[r.id];
-    if (fdb) await fdb.ref('claims/' + r.id).remove();
+    if (fdb){
+      try { await fdb.ref('claims/' + r.id).remove(); markOk(); }
+      catch(e){ markNg(e); throw e; }
+    }
   }
+}
+function markOk(){
+  const cn = document.getElementById('conn');
+  cn.className = 'conn ok'; cn.textContent = '保存できています';
+}
+function markNg(e){
+  const cn = document.getElementById('conn');
+  cn.className = 'conn ng'; cn.textContent = '保存できません';
+  console.error('Firebase書き込みエラー:', e);
 }
 document.getElementById('autoPick').addEventListener('click', async e => {
   const bud = budget();
