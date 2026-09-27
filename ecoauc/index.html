@@ -161,7 +161,7 @@ main{max-width:1240px;margin:0 auto;padding:14px 14px 90px}
 /* ── 表 ────────────────── */
 .scroll{overflow-x:auto;border:2px solid var(--rule);border-radius:14px;background:var(--panel);
   box-shadow:var(--sh)}
-table{border-collapse:collapse;width:100%;min-width:1120px}
+table{border-collapse:collapse;width:100%;min-width:1260px}
 .range{white-space:nowrap;text-align:left}
 .gline{display:flex;align-items:baseline;gap:8px;padding:6px 10px;border-radius:8px;
   font-size:13px;font-weight:700;color:var(--ink);border:2px solid var(--rule);
@@ -288,6 +288,19 @@ body.compact .card{padding:9px 11px}
 body.compact .card .mname{font-size:15px}
 body.compact .card .full,body.compact .card .thumbrow{display:none}
 body.compact .card .kv b{font-size:16px}
+
+.manwrap{display:inline-flex;gap:5px;align-items:center}
+.manin{font:inherit;font-size:15px;font-weight:800;text-align:right;width:98px;
+  padding:6px 9px;border:2px dashed var(--rule);border-radius:7px;
+  background:var(--paper);color:var(--ink);font-variant-numeric:tabular-nums}
+.manin::placeholder{color:var(--ink2);font-weight:600;opacity:.6}
+.manin:focus{border-style:solid;border-color:var(--ai);outline:none}
+.manin.on{border-style:solid;border-color:var(--vi);background:var(--vi-soft);color:var(--vi)}
+.manx{font:inherit;font-size:14px;font-weight:800;cursor:pointer;border:0;background:transparent;
+  color:var(--ink2);padding:2px 6px;border-radius:5px}
+.manx:hover{background:var(--ng-soft);color:var(--ng)}
+.gline.man{background:var(--vi-soft);border-color:var(--vi)}
+.gline.man .glab,.gline.man .gmark,.gline.man .glim{color:var(--vi)}
 
 .symbtn{font:inherit;font-size:12px;font-weight:700;cursor:pointer;padding:5px 11px;border-radius:999px;
   border:2px dashed var(--rule);background:transparent;color:var(--ink2);white-space:nowrap}
@@ -468,6 +481,7 @@ body.compact .card .kv b{font-size:16px}
           <th class="l">ランク</th>
           <th data-sort="start">開始価格</th>
           <th class="l" data-sort="gainStart">いくらまで入れる／手残り（最低〜最高）</th>
+          <th class="l">手で決める</th>
           <th class="l">直す</th>
           <th class="l nm">商品名</th>
           <th class="l">担当</th>
@@ -486,6 +500,7 @@ body.compact .card .kv b{font-size:16px}
     <b>直す</b>は、A・AB以外は最初からONになっている（状態が悪いものは直して売る前提）。押して切り替えられる。<br>
     <b>直す所を選ぶ</b>でリペアマニュアルの101症例から該当するものを選べる。書き出すCSVのメモ欄に入る。<br>
     <b>写真</b>は下見ページを「ウェブページ、完全」で保存してできる <b>_files フォルダ</b>を入れると出る。画像のファイル名にある商品管理番号で自動で結びつく。タップで拡大。<br>
+    <b>手で決める</b>の欄に数字を入れると、その金額で入札する（自動の計算を上書きする）。空にすれば自動に戻る。<br>
     担当を押すと、他のメンバーの画面ではその商品が押せなくなる。書き出すと「入札済」が付く。<br>
     <b>全員分をまとめて書き出す</b>を使うと、メンバー全員の担当を1つのCSVにできる。メモ欄に担当者の名前が入る。
     1人がまとめてアップロードするときに使う。
@@ -659,7 +674,7 @@ async function loadFiles(list){
         id, no: parseInt(d['出品順'] || '0', 10) || 0,
         mgmt: String(d['商品管理番号'] || ''),
         name, rank: String(d['ランク'] || '').trim(),
-        start, key, baseLimit: lim ? lim.ub : null, limit: null,
+        start, key, baseLimit: lim ? lim.ub : null, limit: null, manual: null,
         fix: !['N','S','A'].includes(String(d['ランク']||'').trim()),
         syms: [], bidded: false,
         mq1: lim ? lim.mq1 : 0, mm: lim ? lim.mm : 0, mq3: lim ? lim.mq3 : 0,
@@ -717,8 +732,11 @@ function loAt(r, fix){
 }
 function hiAt(r, fix){ return gain(r.start, sellMid(r, fix)) - extraCost(fix); }
 
-function limitOf(r){ return limitAt(r, r.fix); }
-function lowGain(r){ return loAt(r, r.fix); }
+function limitOf(r){ return r.manual ? r.manual : limitAt(r, r.fix); }
+function lowGain(r){
+  if (r.manual) return Math.min(gain(r.manual, sellLow(r, r.fix)), gain(r.start, sellLow(r, r.fix))) - extraCost(r.fix);
+  return loAt(r, r.fix);
+}
 function highGain(r){ return hiAt(r, r.fix); }
 function money(n){ return (n < 0 ? '−' : '+') + Math.abs(n).toLocaleString(); }
 function rangeOf(r, fix){
@@ -740,6 +758,20 @@ function rangeCell(r){
       `<span class="gnum go">${money(hi)}</span>` +
       `</div>`;
   };
+  if (r.manual){
+    const lo = Math.min(gain(r.manual, sellLow(r, r.fix)), gain(r.start, sellLow(r, r.fix))) - extraCost(r.fix);
+    const hi = hiAt(r, r.fix);
+    return `<div class="gline on man"><span class="gmark">✎</span>` +
+      `<span class="glab">手で決めた金額</span>` +
+      `<span class="glim">${r.manual.toLocaleString()}<small>まで入れる</small></span>` +
+      `<span class="gnum" style="color:${lo<0?'var(--ng)':'var(--ink)'}">${money(lo)}</span>` +
+      `<span class="gto">〜</span><span class="gnum go">${money(hi)}</span></div>` +
+      `<div class="gline"><span class="gmark">○</span>` +
+      `<span class="glab">${r.fix ? '直してから売る' : '直さずそのまま売る'}</span>` +
+      `<span class="glim">${(limitAt(r, r.fix)||0).toLocaleString()}<small>まで入れる</small></span>` +
+      `<span class="gnum">${money(loAt(r, r.fix))}</span><span class="gto">〜</span>` +
+      `<span class="gnum go">${money(hiAt(r, r.fix))}</span></div>`;
+  }
   const d = (limitAt(r, true) || 0) - (limitAt(r, false) || 0);
   const diff = d === 0 ? '<div class="gdiff same">直しても変わらない</div>'
     : d > 0 ? `<div class="gdiff">直せば <b>${d.toLocaleString()}円</b> 高く入れられる</div>`
@@ -887,11 +919,13 @@ function render(){
       `<td class="l"><span class="rk rk-${r.rank}">${r.rank}</span></td>` +
       `<td class="num dim">${r.start.toLocaleString()}</td>` +
       `<td class="l range">${rangeCell(r)}</td>` +
+      `<td class="l manual"></td>` +
       `<td class="l"></td>` +
       `<td class="l nm"><span class="name" title="${r.name.replace(/"/g,'')}">${r.name}</span></td>` +
       `<td class="l"></td>`;
     tr.children[0].appendChild(thumbEl(r));
-    const fixCell = tr.children[6];
+    tr.children[6].appendChild(makeManual(r));
+    const fixCell = tr.children[7];
     if (urlTpl){
       const a = document.createElement('a');
       a.className = 'pic'; a.target = '_blank'; a.rel = 'noopener';
@@ -917,6 +951,32 @@ function render(){
   }
   tb.appendChild(frag);
   renderCards(list);
+}
+
+function makeManual(r){
+  const wrap = document.createElement('span');
+  wrap.className = 'manwrap';
+  const inp = document.createElement('input');
+  inp.type = 'number'; inp.step = '1000'; inp.min = '0';
+  inp.className = 'manin' + (r.manual ? ' on' : '');
+  inp.placeholder = r.limit !== null ? String(r.limit) : '—';
+  inp.value = r.manual || '';
+  inp.title = 'ここに数字を入れると、その金額で入札する';
+  inp.addEventListener('input', () => {
+    const v = parseInt(inp.value, 10);
+    r.manual = (isNaN(v) || v <= 0) ? null : v;
+    inp.classList.toggle('on', !!r.manual);
+    render();
+  });
+  wrap.appendChild(inp);
+  if (r.manual){
+    const x = document.createElement('button');
+    x.type = 'button'; x.className = 'manx'; x.textContent = '×';
+    x.title = '自動に戻す';
+    x.addEventListener('click', () => { r.manual = null; render(); });
+    wrap.appendChild(x);
+  }
+  return wrap;
 }
 
 function makeFix(r){
@@ -1033,6 +1093,7 @@ function renderCards(list){
       trow.appendChild(img);
     } } else trow.remove();
     const acts = el.querySelector('.acts');
+    acts.appendChild(makeManual(r));
     if (urlTpl){
       const a = document.createElement('a');
       a.className = 'pic'; a.target = '_blank'; a.rel = 'noopener';
@@ -1272,6 +1333,7 @@ function toCsv(list, withWho){
       return /[",\n]/.test(s) ? '"' + s.split('"').join('""') + '"' : s;
     };
     let memo = r.fix ? ('直す' + (r.syms.length ? ':' + r.syms.join(' ') : '')) : '';
+    if (r.manual) memo = (memo ? memo + ' ' : '') + '手入力';
     if (withWho && claims[r.id]) memo = (claims[r.id].name || '') + (memo ? ' ' + memo : '');
     lines.push([r.id, r.mgmt, cell(r.name), r.no, r.rank, r.start, r.limit, cell(memo), r.date, 0].join(','));
   }
