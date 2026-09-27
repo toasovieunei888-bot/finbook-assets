@@ -486,7 +486,9 @@ body.compact .card .kv b{font-size:16px}
     <b>直す</b>は、A・AB以外は最初からONになっている（状態が悪いものは直して売る前提）。押して切り替えられる。<br>
     <b>直す所を選ぶ</b>でリペアマニュアルの101症例から該当するものを選べる。書き出すCSVのメモ欄に入る。<br>
     <b>写真</b>は下見ページを「ウェブページ、完全」で保存してできる <b>_files フォルダ</b>を入れると出る。画像のファイル名にある商品管理番号で自動で結びつく。タップで拡大。<br>
-    担当を押すと、他のメンバーの画面ではその商品が押せなくなる。書き出すと「入札済」が付く。
+    担当を押すと、他のメンバーの画面ではその商品が押せなくなる。書き出すと「入札済」が付く。<br>
+    <b>全員分をまとめて書き出す</b>を使うと、メンバー全員の担当を1つのCSVにできる。メモ欄に担当者の名前が入る。
+    1人がまとめてアップロードするときに使う。
   </p>
 </main>
 
@@ -514,6 +516,7 @@ body.compact .card .kv b{font-size:16px}
     <span class="spacer"></span>
     <button type="button" id="claimAll">表示中を全部担当する</button>
     <button type="button" id="dlAll" class="primary" disabled>入札CSVを書き出す（自分の担当）</button>
+    <button type="button" id="dlEvery" disabled>全員分をまとめて書き出す</button>
     <button type="button" id="clearBtn">読み込みを消す</button>
   </div>
 </div>
@@ -853,6 +856,10 @@ function render(){
     .map(([n, c]) => `${n} <b class="num">${c}</b>件`).join('　') || '';
   document.getElementById('fFree').textContent = bids.filter(r => !claims[r.id]).length;
   document.getElementById('dlAll').disabled = mine.length === 0;
+  const everyone = bids.filter(r => claims[r.id]);
+  document.getElementById('dlEvery').disabled = everyone.length === 0;
+  document.getElementById('dlEvery').textContent = everyone.length
+    ? `全員分をまとめて書き出す（${everyone.length}件）` : '全員分をまとめて書き出す';
 
   const tot = myTotal(), bud = budget();
   const pct = bud ? Math.min(100, Math.round(tot / bud * 100)) : 0;
@@ -1256,7 +1263,7 @@ drop2.addEventListener('drop', e => {
 });
 
 /* ───────── 書き出し ───────── */
-function toCsv(list){
+function toCsv(list, withWho){
   const head = ['商品ID','商品管理番号','商品名','出品順','ランク','開始価格','事前入札価格','メモ','開始予定日','税額控除対象外'];
   const lines = [head.join(',')];
   for (const r of list){
@@ -1264,7 +1271,8 @@ function toCsv(list){
       const s = String(v == null ? '' : v);
       return /[",\n]/.test(s) ? '"' + s.split('"').join('""') + '"' : s;
     };
-    const memo = r.fix ? ('直す' + (r.syms.length ? ':' + r.syms.join(' ') : '')) : '';
+    let memo = r.fix ? ('直す' + (r.syms.length ? ':' + r.syms.join(' ') : '')) : '';
+    if (withWho && claims[r.id]) memo = (claims[r.id].name || '') + (memo ? ' ' + memo : '');
     lines.push([r.id, r.mgmt, cell(r.name), r.no, r.rank, r.start, r.limit, cell(memo), r.date, 0].join(','));
   }
   return lines.join('\r\n');
@@ -1365,6 +1373,24 @@ document.getElementById('claimAll').addEventListener('click', async e => {
   e.target.disabled = false;
   render();
   flash(`${free.length}件を担当に入れました。`);
+});
+
+document.getElementById('dlEvery').addEventListener('click', () => {
+  const all = rows.filter(r => bidable(r) && claims[r.id]).sort((a, b) => a.no - b.no);
+  if (!all.length) return;
+  const who = {};
+  for (const r of all){ const n = claims[r.id].name || '?'; who[n] = (who[n] || 0) + 1; }
+  const list = Object.entries(who).map(([n, c]) => `${n} ${c}件`).join('／');
+  const tot = all.reduce((s, r) => s + cost(r.limit), 0);
+  if (!confirm(`全員分 ${all.length}件を1つのCSVにします。\n${list}\n全部落ちた場合の支払い ¥${tot.toLocaleString()}`)) return;
+  const blob = new Blob(['\uFEFF' + toCsv(all, true)], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'nyusatsu_zeninbun_' + new Date().toISOString().slice(0,10) + '.csv';
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 3000);
+  for (const r of all) r.bidded = true;
+  render();
 });
 
 document.getElementById('clearBtn').addEventListener('click', () => {
