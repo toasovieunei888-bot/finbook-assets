@@ -732,11 +732,9 @@ function loAt(r, fix){
 }
 function hiAt(r, fix){ return gain(r.start, sellMid(r, fix)) - extraCost(fix); }
 
-function limitOf(r){ return r.manual ? r.manual : limitAt(r, r.fix); }
-function lowGain(r){
-  if (r.manual) return Math.min(gain(r.manual, sellLow(r, r.fix)), gain(r.start, sellLow(r, r.fix))) - extraCost(r.fix);
-  return loAt(r, r.fix);
-}
+function limitOf(r){ return limitAt(r, r.fix); }
+function bidValue(r){ return r.manual ? r.manual : r.limit; }
+function lowGain(r){ return loAt(r, r.fix); }
 function highGain(r){ return hiAt(r, r.fix); }
 function money(n){ return (n < 0 ? '−' : '+') + Math.abs(n).toLocaleString(); }
 function rangeOf(r, fix){
@@ -758,20 +756,14 @@ function rangeCell(r){
       `<span class="gnum go">${money(hi)}</span>` +
       `</div>`;
   };
-  if (r.manual){
-    const lo = Math.min(gain(r.manual, sellLow(r, r.fix)), gain(r.start, sellLow(r, r.fix))) - extraCost(r.fix);
-    const hi = hiAt(r, r.fix);
-    return `<div class="gline on man"><span class="gmark">✎</span>` +
+  const manLine = r.manual
+    ? `<div class="gline on man"><span class="gmark">✎</span>` +
       `<span class="glab">手で決めた金額</span>` +
-      `<span class="glim">${r.manual.toLocaleString()}<small>まで入れる</small></span>` +
-      `<span class="gnum" style="color:${lo<0?'var(--ng)':'var(--ink)'}">${money(lo)}</span>` +
-      `<span class="gto">〜</span><span class="gnum go">${money(hi)}</span></div>` +
-      `<div class="gline"><span class="gmark">○</span>` +
-      `<span class="glab">${r.fix ? '直してから売る' : '直さずそのまま売る'}</span>` +
-      `<span class="glim">${(limitAt(r, r.fix)||0).toLocaleString()}<small>まで入れる</small></span>` +
-      `<span class="gnum">${money(loAt(r, r.fix))}</span><span class="gto">〜</span>` +
-      `<span class="gnum go">${money(hiAt(r, r.fix))}</span></div>`;
-  }
+      `<span class="glim">${r.manual.toLocaleString()}<small>で入れる</small></span>` +
+      `<span class="gnum" style="color:${lowGainAt(r)<0?'var(--ng)':'var(--ink)'}">${money(lowGainAt(r))}</span>` +
+      `<span class="gto">〜</span><span class="gnum go">${money(hiAt(r, r.fix))}</span></div>`
+    : '';
+  if (manLine) return manLine + line(true, false) + line(false, false);
   const d = (limitAt(r, true) || 0) - (limitAt(r, false) || 0);
   const diff = d === 0 ? '<div class="gdiff same">直しても変わらない</div>'
     : d > 0 ? `<div class="gdiff">直せば <b>${d.toLocaleString()}円</b> 高く入れられる</div>`
@@ -781,7 +773,7 @@ function rangeCell(r){
 
 function bidable(r){ return r.limit !== null && r.start <= r.limit; }
 function myRows(){ return rows.filter(r => bidable(r) && claims[r.id] && claims[r.id].by === me); }
-function myTotal(){ return myRows().reduce((s, r) => s + cost(r.limit), 0); }
+function myTotal(){ return myRows().reduce((s, r) => s + cost(bidValue(r)), 0); }
 function budget(){ return parseInt(document.getElementById('budget').value, 10) || 0; }
 
 function recalc(){ for (const r of rows) r.limit = limitOf(r); }
@@ -803,6 +795,40 @@ function visible(){
     return (x - y) * dir;
   });
   return v;
+}
+
+function updateTotals(){
+  const bids = rows.filter(bidable);
+  const mine = bids.filter(r => claims[r.id] && claims[r.id].by === me);
+  const sumCost = a => a.reduce((s, r) => s + cost(bidValue(r)), 0);
+  const sumLo   = a => a.reduce((s, r) => s + lowGainAt(r), 0);
+  const sumHi   = a => a.reduce((s, r) => s + highGain(r), 0);
+  const f = (n) => (n < 0 ? '−¥' : '+¥') + Math.abs(n).toLocaleString();
+  const putRange = (id, lo, hi) => {
+    const el = document.getElementById(id); if (!el) return;
+    el.innerHTML = `<span style="color:${lo<0?'var(--ng)':'var(--ink)'}">${f(lo)}</span>` +
+      `<span style="font-size:14px;color:var(--ink2)"> 〜 </span>` +
+      `<span style="color:var(--go)">${f(hi)}</span>`;
+  };
+  document.getElementById('aSum').textContent = '¥' + sumCost(bids).toLocaleString();
+  putRange('aRange', sumLo(bids), sumHi(bids));
+  document.getElementById('sSum').textContent = '¥' + sumCost(mine).toLocaleString();
+  putRange('sRange', sumLo(mine), sumHi(mine));
+  const tot = myTotal(), bud = budget();
+  const pct = bud ? Math.min(100, Math.round(tot / bud * 100)) : 0;
+  const over = bud > 0 && tot > bud;
+  document.getElementById('bar2f').style.width = pct + '%';
+  document.getElementById('bar2').className = 'bar2' + (over ? ' over' : '');
+  document.getElementById('budgetAmt').className = 'amt' + (over ? ' over' : '');
+  document.getElementById('budgetAmt').innerHTML =
+    `<b>¥${tot.toLocaleString()}</b> / ¥${bud.toLocaleString()}` +
+    (over ? `　<span style="color:var(--ng);font-weight:600">¥${(tot-bud).toLocaleString()} 超過</span>`
+          : `　残り ¥${(bud-tot).toLocaleString()}`);
+}
+// 実際に入れる金額での最低手残り
+function lowGainAt(r){
+  const b = bidValue(r);
+  return Math.min(gain(b, sellLow(r, r.fix)), gain(r.start, sellLow(r, r.fix))) - extraCost(r.fix);
 }
 
 function render(){
@@ -862,8 +888,8 @@ function render(){
   }
 
   const mine = bids.filter(r => claims[r.id] && claims[r.id].by === me);
-  const sumCost = a => a.reduce((s, r) => s + cost(r.limit), 0);
-  const sumLo   = a => a.reduce((s, r) => s + lowGain(r), 0);
+  const sumCost = a => a.reduce((s, r) => s + cost(bidValue(r)), 0);
+  const sumLo   = a => a.reduce((s, r) => s + lowGainAt(r), 0);
   const sumHi   = a => a.reduce((s, r) => s + highGain(r), 0);
   const f = (n) => (n < 0 ? '−¥' : '+¥') + Math.abs(n).toLocaleString();
   const putRange = (id, lo, hi) => {
@@ -966,7 +992,13 @@ function makeManual(r){
     const v = parseInt(inp.value, 10);
     r.manual = (isNaN(v) || v <= 0) ? null : v;
     inp.classList.toggle('on', !!r.manual);
-    render();
+    // その行の「手で決めた金額」の行だけ描き直す
+    const tr = inp.closest('tr') || inp.closest('.card');
+    if (tr){
+      const cell = tr.querySelector('.range');
+      if (cell) cell.innerHTML = rangeCell(r);
+    }
+    updateTotals();
   });
   wrap.appendChild(inp);
   if (r.manual){
@@ -1335,7 +1367,7 @@ function toCsv(list, withWho){
     let memo = r.fix ? ('直す' + (r.syms.length ? ':' + r.syms.join(' ') : '')) : '';
     if (r.manual) memo = (memo ? memo + ' ' : '') + '手入力';
     if (withWho && claims[r.id]) memo = (claims[r.id].name || '') + (memo ? ' ' + memo : '');
-    lines.push([r.id, r.mgmt, cell(r.name), r.no, r.rank, r.start, r.limit, cell(memo), r.date, 0].join(','));
+    lines.push([r.id, r.mgmt, cell(r.name), r.no, r.rank, r.start, bidValue(r), cell(memo), r.date, 0].join(','));
   }
   return lines.join('\r\n');
 }
@@ -1387,9 +1419,9 @@ document.getElementById('autoPick').addEventListener('click', async e => {
     .sort((a, b) => highGain(b) - highGain(a));
   let n = 0;
   for (const r of free){
-    if (tot + cost(r.limit) > bud) continue;
+    if (tot + cost(bidValue(r)) > bud) continue;
     await setClaim(r, true);
-    tot += cost(r.limit); n++;
+    tot += cost(bidValue(r)); n++;
   }
   e.target.disabled = false;
   render();
