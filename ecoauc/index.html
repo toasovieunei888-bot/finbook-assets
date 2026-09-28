@@ -338,6 +338,9 @@ tbody tr.ngrow:hover{background:#332E29!important}
 .manx:hover{background:var(--ng-soft);color:var(--ng)}
 .gline.man{background:var(--vi-soft);border-color:var(--vi)}
 .gline.man .glab,.gline.man .gmark,.gline.man .glim{color:var(--vi)}
+.gline.man.lowwarn{background:var(--ng-soft);border-color:var(--ng)}
+.gline.man.lowwarn .glab,.gline.man.lowwarn .gmark,.gline.man.lowwarn .glim{color:var(--ng)}
+.manin.low{border-color:var(--ng);background:var(--ng-soft);color:var(--ng)}
 
 .symbtn{font:inherit;font-size:12px;font-weight:700;cursor:pointer;padding:5px 11px;border-radius:999px;
   border:2px dashed var(--rule);background:transparent;color:var(--ink2);white-space:nowrap}
@@ -571,7 +574,8 @@ tbody tr.ngrow:hover{background:#332E29!important}
     <b>直す所を選ぶ</b>でリペアマニュアルの101症例から該当するものを選べる。書き出すCSVのメモ欄に入る。<br>
     <b>写真</b>は下見ページを「ウェブページ、完全」で保存してできる <b>_files フォルダ</b>を入れると出る。画像のファイル名にある商品管理番号で自動で結びつく。タップで拡大。<br>
     <b>×</b>を押すと「この商品はダメ」とメンバー全員に共有される。担当からも書き出しからも外れる。もう一度押せば戻る。<br>
-    <b>手で決める</b>の欄に数字を入れると、その金額で入札する（自動の計算を上書きする）。空にすれば自動に戻る。<br>
+    <b>手で決める</b>の欄に数字を入れると、その金額で入札する（自動の計算を上書きする）。空にすれば自動に戻る。
+    開始価格より低い金額を入れると赤くなり、その金額では落ちないと出る。書き出しには自動の金額が入る。<br>
     担当を押すと、他のメンバーの画面ではその商品が押せなくなる。書き出すと「入札済」が付く。<br>
     <b>全員分をまとめて書き出す</b>を使うと、メンバー全員の担当を1つのCSVにできる。メモ欄に担当者の名前が入る。
     1人がまとめてアップロードするときに使う。
@@ -822,7 +826,7 @@ function loAt(r, st){
 function hiAt(r, st){ return gain(r.start, sellAt(r, st)) - extraCost(st); }
 
 function limitOf(r){ return limitAt(r, r.stage); }
-function bidValue(r){ return r.manual ? r.manual : r.limit; }
+function bidValue(r){ return (r.manual && r.manual >= r.start) ? r.manual : r.limit; }
 function lowGain(r){ return loAt(r, r.stage); }
 function highGain(r){ return hiAt(r, r.stage); }
 function lowGainAt(r){
@@ -844,17 +848,23 @@ function rangeCell(r){
       `<span class="gto">〜</span>` +
       `<span class="gnum go">${money(hi)}</span></div>`;
   };
+  const low = tooLow(r);
   const manLine = r.manual
-    ? `<div class="gline on man"><span class="gmark">✎</span>` +
-      `<span class="glab">手で決めた金額</span>` +
-      `<span class="glim">${r.manual.toLocaleString()}<small>で入れる</small></span>` +
-      `<span class="gnum" style="color:${lowGainAt(r)<0?'var(--ng)':'var(--ink)'}">${money(lowGainAt(r))}</span>` +
-      `<span class="gto">〜</span><span class="gnum go">${money(hiAt(r, r.stage))}</span></div>`
+    ? `<div class="gline on man${low ? ' lowwarn' : ''}"><span class="gmark">${low ? '⚠' : '✎'}</span>` +
+      `<span class="glab">${low ? '開始価格より低い' : '手で決めた金額'}</span>` +
+      `<span class="glim">${r.manual.toLocaleString()}<small>${low ? 'では落ちない' : 'で入れる'}</small></span>` +
+      (low
+        ? `<span class="gnum" style="color:var(--ng)">開始 ${r.start.toLocaleString()} 以上にする</span>`
+        : `<span class="gnum" style="color:${lowGainAt(r)<0?'var(--ng)':'var(--ink)'}">${money(lowGainAt(r))}</span>` +
+          `<span class="gto">〜</span><span class="gnum go">${money(hiAt(r, r.stage))}</span>`) +
+      `</div>`
     : '';
   return manLine + line(1) + line(2) + line(3);
 }
 
-function bidable(r){ return r.limit !== null && r.start <= bidValue(r); }
+function bidable(r){ return r.limit !== null && r.start <= r.limit; }
+// 手で入れた金額が開始価格より低い＝その値では落ちない
+function tooLow(r){ return r.manual && r.manual < r.start; }
 function myRows(){ return rows.filter(r => bidable(r) && !rejects[r.id] && claims[r.id] && claims[r.id].by === me); }
 function myTotal(){ return myRows().reduce((s, r) => s + cost(bidValue(r)), 0); }
 function budget(){ return parseInt(document.getElementById('budget').value, 10) || 0; }
@@ -1074,7 +1084,7 @@ function makeManual(r){
   wrap.className = 'manwrap';
   const inp = document.createElement('input');
   inp.type = 'number'; inp.step = '1000'; inp.min = '0';
-  inp.className = 'manin' + (r.manual ? ' on' : '');
+  inp.className = 'manin' + (r.manual ? (tooLow(r) ? ' on low' : ' on') : '');
   inp.placeholder = r.limit !== null ? String(r.limit) : '—';
   inp.value = r.manual || '';
   inp.title = 'ここに数字を入れると、その金額で入札する';
@@ -1083,6 +1093,7 @@ function makeManual(r){
     const v = parseInt(inp.value, 10);
     r.manual = (isNaN(v) || v <= 0) ? null : v;
     inp.classList.toggle('on', !!r.manual);
+    inp.classList.toggle('low', tooLow(r));
     saveNote(r);
     // その行の「手で決めた金額」の行だけ描き直す
     const tr = inp.closest('tr') || inp.closest('.card');
