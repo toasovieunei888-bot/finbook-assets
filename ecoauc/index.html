@@ -825,7 +825,7 @@ function rangeCell(r){
 }
 
 function bidable(r){ return r.limit !== null && r.start <= bidValue(r); }
-function myRows(){ return rows.filter(r => bidable(r) && claims[r.id] && claims[r.id].by === me); }
+function myRows(){ return rows.filter(r => bidable(r) && !rejects[r.id] && claims[r.id] && claims[r.id].by === me); }
 function myTotal(){ return myRows().reduce((s, r) => s + cost(bidValue(r)), 0); }
 function budget(){ return parseInt(document.getElementById('budget').value, 10) || 0; }
 
@@ -834,8 +834,9 @@ function recalc(){ for (const r of rows) r.limit = limitOf(r); }
 function visible(){
   recalc();
   let v = rows.slice();
-  if (mode === 'bid') v = v.filter(r => bidable(r) && !rejects[r.id]);
+  if (mode === 'bid') v = v.filter(bidable);
   else if (mode === 'ng') v = v.filter(r => rejects[r.id]);
+  else if (mode === 'clean') v = v.filter(r => bidable(r) && !rejects[r.id]);
   else if (mode === 'match') v = v.filter(r => r.limit !== null);
   const dir = sortDir;
   v.sort((a, b) => {
@@ -967,7 +968,7 @@ function render(){
   document.getElementById('fFree').textContent = bids.filter(r => !claims[r.id]).length;
   document.getElementById('fNg').textContent = ngCount;
   document.getElementById('dlAll').disabled = mine.length === 0;
-  const everyone = bids.filter(r => claims[r.id]);
+  const everyone = rows.filter(r => bidable(r) && !rejects[r.id] && claims[r.id]);
   document.getElementById('dlEvery').disabled = everyone.length === 0;
   document.getElementById('dlEvery').textContent = everyone.length
     ? `全員分をまとめて書き出す（${everyone.length}件）` : '全員分をまとめて書き出す';
@@ -1555,7 +1556,7 @@ function toCsv(list, withWho){
   return lines.join('\r\n');
 }
 document.getElementById('dlAll').addEventListener('click', () => {
-  const mine = rows.filter(r => bidable(r) && claims[r.id] && claims[r.id].by === me)
+  const mine = rows.filter(r => bidable(r) && !rejects[r.id] && claims[r.id] && claims[r.id].by === me)
                    .sort((a, b) => a.no - b.no);
   if (!mine.length) return;
   const blob = new Blob(['\uFEFF' + toCsv(mine)], { type: 'text/csv;charset=utf-8' });
@@ -1675,7 +1676,7 @@ document.getElementById('claimAll').addEventListener('click', async e => {
 });
 
 document.getElementById('dlEvery').addEventListener('click', () => {
-  const all = rows.filter(r => bidable(r) && claims[r.id]).sort((a, b) => a.no - b.no);
+  const all = rows.filter(r => bidable(r) && !rejects[r.id] && claims[r.id]).sort((a, b) => a.no - b.no);
   if (!all.length) return;
   const who = {};
   for (const r of all){ const n = claims[r.id].name || '?'; who[n] = (who[n] || 0) + 1; }
@@ -1725,7 +1726,7 @@ const denBox = document.getElementById('denChips');
 });
 
 const modeBox = document.getElementById('modeChips');
-[['bid','入札する分だけ'],['ng','ダメ印だけ'],['all','読み込んだ全部']].forEach(([v,l]) => {
+[['bid','入札する分だけ'],['clean','ダメ印を隠す'],['ng','ダメ印だけ'],['all','読み込んだ全部']].forEach(([v,l]) => {
   const b = document.createElement('button');
   b.className = 'chip'; b.type = 'button'; b.textContent = l;
   b.setAttribute('aria-pressed', v === 'bid' ? 'true' : 'false');
