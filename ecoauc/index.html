@@ -296,12 +296,35 @@ body.compact .card .kv b{font-size:16px}
   border:2px solid var(--rule);background:transparent;color:var(--ink2);margin-left:6px;min-width:40px}
 .ng:hover{border-color:var(--ng);color:var(--ng);background:var(--ng-soft)}
 .ng.on{background:var(--ng);border-color:var(--ng);color:#fff}
+.ngtag{display:inline-block;font-size:11px;font-weight:800;margin-right:7px;
+  padding:2px 9px;border-radius:5px;background:var(--ng);color:#fff;vertical-align:middle}
 .ngwho{color:var(--ng)!important}
 .ngwho b{color:var(--ng)!important}
-tbody tr.ngrow{background:var(--ng-soft)!important;box-shadow:inset 5px 0 0 var(--ng)}
-tbody tr.ngrow .model{color:var(--ng)}
-tbody tr.ngrow .range,tbody tr.ngrow .bid{opacity:.5}
-.card.ngrow{border-color:var(--ng);background:var(--ng-soft)}
+/* ダメ印：行ごと暗く落として、取り消し線 */
+tbody tr.ngrow{background:#2A2622!important; box-shadow:inset 6px 0 0 var(--ng)}
+tbody tr.ngrow td{color:#8A8078!important; border-bottom-color:#3A342E!important}
+tbody tr.ngrow .model{color:#9A8F86!important; text-decoration:line-through; text-decoration-thickness:2px}
+tbody tr.ngrow .name{color:#7A716A!important; text-decoration:line-through}
+tbody tr.ngrow .gline{background:#332E29!important; border-color:#443D36!important; color:#8A8078!important}
+tbody tr.ngrow .gline.on{background:#3A342E!important; border-color:#554C44!important}
+tbody tr.ngrow .glab,tbody tr.ngrow .gnum,tbody tr.ngrow .glim,tbody tr.ngrow .gmark,
+tbody tr.ngrow .gnum.go,tbody tr.ngrow .glim small{color:#8A8078!important}
+tbody tr.ngrow .gdiff{background:#443D36!important; color:#9A8F86!important}
+tbody tr.ngrow .rk{background:#3A342E!important; color:#9A8F86!important}
+tbody tr.ngrow .thumb{filter:grayscale(1) brightness(.5); border-color:#443D36}
+tbody tr.ngrow .manin{background:#332E29; border-color:#443D36; color:#8A8078}
+tbody tr.ngrow .tg,tbody tr.ngrow .symbtn{background:transparent!important; border-color:#443D36!important; color:#8A8078!important}
+tbody tr.ngrow .ngwho{color:#FF8F82!important}
+tbody tr.ngrow .ngwho b{color:#FF8F82!important}
+tbody tr.ngrow .ng.on{background:var(--ng); border-color:var(--ng); color:#fff}
+tbody tr.ngrow:hover{background:#332E29!important}
+
+.card.ngrow{background:#2A2622; border-color:var(--ng); border-width:3px}
+.card.ngrow .mname{color:#9A8F86; text-decoration:line-through}
+.card.ngrow .full,.card.ngrow .kv span,.card.ngrow .kv b{color:#8A8078}
+.card.ngrow .gline{background:#332E29; border-color:#443D36}
+.card.ngrow .glab,.card.ngrow .gnum,.card.ngrow .glim{color:#8A8078!important}
+.card.ngrow .thumb{filter:grayscale(1) brightness(.5)}
 
 .manwrap{display:inline-flex;gap:5px;align-items:center}
 .manin{font:inherit;font-size:15px;font-weight:800;text-align:right;width:98px;
@@ -972,7 +995,7 @@ function render(){
     tr.innerHTML =
       `<td class="l"></td>` +
       `<td class="l num dim">${r.no}</td>` +
-      `<td class="l"><span class="model">${r.key || '—'}</span>${r.bidded ? '<span class="bidded">入札済</span>' : ''}${r.brand !== 'ルイヴィトン' ? ' <span class="dim" style="font-size:11px">' + r.brand + '</span>' : ''}</td>` +
+      `<td class="l">${rejects[r.id] ? '<span class="ngtag">ダメ</span>' : ''}<span class="model">${r.key || '—'}</span>${r.bidded ? '<span class="bidded">入札済</span>' : ''}${r.brand !== 'ルイヴィトン' ? ' <span class="dim" style="font-size:11px">' + r.brand + '</span>' : ''}</td>` +
       `<td class="l"><span class="rk rk-${r.rank}">${r.rank}</span></td>` +
       `<td class="num dim">${r.start.toLocaleString()}</td>` +
       `<td class="l range">${rangeCell(r)}</td>` +
@@ -1183,7 +1206,7 @@ function renderCards(list){
     const el = document.createElement('div');
     el.className = 'card' + (rejects[r.id] ? ' ngrow' : (c ? (isMine ? ' mine' : ' taken') : ''));
     el.innerHTML =
-      `<div class="top"><span class="mname">${r.key || '—'}</span>` +
+      `<div class="top">${rejects[r.id] ? '<span class="ngtag">ダメ</span>' : ''}<span class="mname">${r.key || '—'}</span>` +
       `<span class="rk rk-${r.rank}">${r.rank}</span>` +
       `<span class="dim num" style="font-size:11.5px">出品順 ${r.no}</span>` +
       (r.bidded ? '<span class="bidded">入札済</span>' : '') + `</div>` +
