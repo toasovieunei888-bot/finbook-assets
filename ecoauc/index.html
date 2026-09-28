@@ -708,6 +708,8 @@ let files = [];           // 読み込んだファイル名
 let claims = {};          // itemId -> {by, name}
 let rejects = {};         // itemId -> {by, name, at}  ダメ印
 let notes   = {};         // itemId -> {stage, manual, syms}  作業中の設定
+const pending = {};       // まだ書けていない自分の入力
+const lastMine = {};      // 自分が直近に入れた値（届いた古いデータで上書きされないように）
 let extraSym = [];        // 自分たちで足した「直す場所」
 let me = null, myName = 'あなた';
 let db = null, userCap = null;
@@ -1076,6 +1078,7 @@ function makeManual(r){
   inp.placeholder = r.limit !== null ? String(r.limit) : '—';
   inp.value = r.manual || '';
   inp.title = 'ここに数字を入れると、その金額で入札する';
+  inp.addEventListener('blur', () => { saveNote(r, true); });
   inp.addEventListener('input', () => {
     const v = parseInt(inp.value, 10);
     r.manual = (isNaN(v) || v <= 0) ? null : v;
@@ -1094,7 +1097,7 @@ function makeManual(r){
     const x = document.createElement('button');
     x.type = 'button'; x.className = 'manx'; x.textContent = '×';
     x.title = '自動に戻す';
-    x.addEventListener('click', () => { r.manual = null; saveNote(r); render(); });
+    x.addEventListener('click', () => { r.manual = null; saveNote(r, true); render(); });
     wrap.appendChild(x);
   }
   return wrap;
@@ -1108,7 +1111,7 @@ function makeFix(r){
     b.className = 'tg st' + st; b.type = 'button';
     b.setAttribute('aria-pressed', r.stage === st ? 'true' : 'false');
     b.textContent = STAGE_NAME[st];
-    b.addEventListener('click', () => { r.stage = st; saveNote(r); render(); });
+    b.addEventListener('click', () => { r.stage = st; saveNote(r, true); render(); });
     wrap.appendChild(b);
   }
   if (r.stage !== 1){
@@ -1155,7 +1158,7 @@ function drawSym(q){
       b.addEventListener('click', () => {
         const i = r.syms.indexOf(sy.id);
         if (i >= 0) r.syms.splice(i, 1); else r.syms.push(sy.id);
-        saveNote(r);
+        saveNote(r, true);
         drawSym(document.getElementById('symQ').value);
       });
       const dl = b.querySelector('[data-del]');
@@ -1190,7 +1193,7 @@ function drawSym(q){
     el.title = sy.p + ' / 外す';
     el.addEventListener('click', () => {
       r.syms.splice(r.syms.indexOf(id), 1);
-      saveNote(r);
+      saveNote(r, true);
       drawSym(document.getElementById('symQ').value);
     });
     pk.appendChild(el);
@@ -1214,15 +1217,16 @@ document.getElementById('symAdd').addEventListener('click', async () => {
   extraSym.push(Object.assign({ id }, rec));
   if (fdb){ try { await fdb.ref('extraSym/' + id).set(rec); } catch(e){ flash('保存に失敗しました。'); } }
   document.getElementById('symNewName').value = '';
-  if (symTarget && !symTarget.syms.includes(id)){ symTarget.syms.push(id); saveNote(symTarget); }
+  if (symTarget && !symTarget.syms.includes(id)){ symTarget.syms.push(id); saveNote(symTarget, true); }
   drawSym('');
   flash(`「${nm}」を足しました。全員の画面に出ます。`);
 });
 document.getElementById('symDone').addEventListener('click', () => {
+  if (symTarget) saveNote(symTarget, true);
   document.getElementById('symModal').hidden = true; symTarget = null; render();
 });
 document.getElementById('symClear').addEventListener('click', () => {
-  if (symTarget){ symTarget.syms = []; saveNote(symTarget); }
+  if (symTarget){ symTarget.syms = []; saveNote(symTarget, true); }
   document.getElementById('symModal').hidden = true; symTarget = null; render();
 });
 document.getElementById('symModal').addEventListener('click', e => {
@@ -1354,7 +1358,14 @@ async function initDb(){
       render();
     });
     fdb.ref('notes').on('value', snap => {
-      notes = snap.val() || {};
+      const srv = snap.val() || {};
+      // 自分が直近30秒に入れた値は、届いたデータより優先する
+      const now = Date.now();
+      for (const id of Object.keys(lastMine)){
+        if (now - lastMine[id].t < 30000) srv[id] = lastMine[id].n;
+        else delete lastMine[id];
+      }
+      notes = srv;
       applyNotes();
       render();
     });
@@ -1643,23 +1654,38 @@ function allSym(){ return SYMPTOMS.concat(extraSym); }
 
 function applyNotes(){
   for (const r of rows){
-    const n = notes[r.id];
+    // まだ書けていない自分の入力があれば、そっちを優先する
+    const n = pending[r.id] || notes[r.id];
     if (!n) continue;
     if (n.stage) r.stage = n.stage;
     r.manual = n.manual || null;
     r.syms = Array.isArray(n.syms) ? n.syms.slice() : [];
   }
 }
-let saveTimer = null;
-function saveNote(r){
+const saveTimers = {};   // 商品ごとにタイマーを持つ（混ざって消えないように）
+function flushNote(id){
+  const n = pending[id];
+  if (!n || !fdb) return;
+  delete pending[id];
+  clearTimeout(saveTimers[id]); delete saveTimers[id];
+  fdb.ref('notes/' + id).set(n)
+    .catch(() => { pending[id] = n; markNg('notes'); });
+}
+function flushAll(){ for (const id of Object.keys(pending)) flushNote(id); }
+function saveNote(r, now){
   const n = { stage: r.stage, manual: r.manual || 0, syms: r.syms || [] };
   notes[r.id] = n;
+  pending[r.id] = n;
+  lastMine[r.id] = { n, t: Date.now() };
   if (!fdb) return;
-  clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => {
-    fdb.ref('notes/' + r.id).set(n).catch(() => {});
-  }, 400);
+  if (now){ flushNote(r.id); return; }
+  clearTimeout(saveTimers[r.id]);
+  saveTimers[r.id] = setTimeout(() => flushNote(r.id), 300);
 }
+// 画面を閉じる・離れるときは、書けていない分を全部書く
+window.addEventListener('beforeunload', flushAll);
+window.addEventListener('pagehide', flushAll);
+document.addEventListener('visibilitychange', () => { if (document.hidden) flushAll(); });
 
 async function setReject(r, on){
   if (on){
@@ -1702,13 +1728,21 @@ async function setClaim(r, on){
 }
 function markOk(){
   const cn = document.getElementById('conn');
-  cn.className = 'conn ok'; cn.textContent = '保存できています';
+  const p = Object.keys(pending).length;
+  cn.className = 'conn ok';
+  cn.textContent = p ? `保存中 ${p}件` : '保存できています';
 }
 function markNg(e){
   const cn = document.getElementById('conn');
   cn.className = 'conn ng'; cn.textContent = '保存できません';
   console.error('Firebase書き込みエラー:', e);
 }
+setInterval(() => {
+  const cn = document.getElementById('conn');
+  if (!cn || cn.classList.contains('ng')) return;
+  const p = Object.keys(pending).length;
+  cn.textContent = p ? `保存中 ${p}件` : '共有できています';
+}, 700);
 document.getElementById('autoPick').addEventListener('click', async e => {
   const bud = budget();
   if (!bud){ flash('予算を入れてください。'); return; }
