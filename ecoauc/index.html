@@ -292,6 +292,17 @@ body.compact .card .mname{font-size:15px}
 body.compact .card .full,body.compact .card .thumbrow{display:none}
 body.compact .card .kv b{font-size:16px}
 
+.ng{font:inherit;font-size:13px;font-weight:800;cursor:pointer;padding:7px 12px;border-radius:999px;
+  border:2px solid var(--rule);background:transparent;color:var(--ink2);margin-left:6px;min-width:40px}
+.ng:hover{border-color:var(--ng);color:var(--ng);background:var(--ng-soft)}
+.ng.on{background:var(--ng);border-color:var(--ng);color:#fff}
+.ngwho{color:var(--ng)!important}
+.ngwho b{color:var(--ng)!important}
+tbody tr.ngrow{background:var(--ng-soft)!important;box-shadow:inset 5px 0 0 var(--ng)}
+tbody tr.ngrow .model{color:var(--ng)}
+tbody tr.ngrow .range,tbody tr.ngrow .bid{opacity:.5}
+.card.ngrow{border-color:var(--ng);background:var(--ng-soft)}
+
 .manwrap{display:inline-flex;gap:5px;align-items:center}
 .manin{font:inherit;font-size:15px;font-weight:800;text-align:right;width:98px;
   padding:6px 9px;border:2px dashed var(--rule);border-radius:7px;
@@ -519,6 +530,7 @@ body.compact .card .kv b{font-size:16px}
     売値は実際のメルカリ相場（個人・売り切れ）を、傷や汚れあり／やや傷や汚れあり／目立った傷なし の3つで測った数字。<br>
     <b>直す所を選ぶ</b>でリペアマニュアルの101症例から該当するものを選べる。書き出すCSVのメモ欄に入る。<br>
     <b>写真</b>は下見ページを「ウェブページ、完全」で保存してできる <b>_files フォルダ</b>を入れると出る。画像のファイル名にある商品管理番号で自動で結びつく。タップで拡大。<br>
+    <b>×</b>を押すと「この商品はダメ」とメンバー全員に共有される。担当からも書き出しからも外れる。もう一度押せば戻る。<br>
     <b>手で決める</b>の欄に数字を入れると、その金額で入札する（自動の計算を上書きする）。空にすれば自動に戻る。<br>
     担当を押すと、他のメンバーの画面ではその商品が押せなくなる。書き出すと「入札済」が付く。<br>
     <b>全員分をまとめて書き出す</b>を使うと、メンバー全員の担当を1つのCSVにできる。メモ欄に担当者の名前が入る。
@@ -548,6 +560,7 @@ body.compact .card .kv b{font-size:16px}
       <span>自分 <b class="num" id="fMine">0</b>件</span>
       <span id="byWho"></span>
       <span>未割当 <b class="num" id="fFree">0</b>件</span>
+      <span style="color:var(--ng)">ダメ印 <b class="num" id="fNg">0</b>件</span>
     </div>
     <span class="spacer"></span>
     <button type="button" id="claimAll">表示中を全部担当する</button>
@@ -645,6 +658,7 @@ function brandOf(name){
 let rows = [];            // 読み込んだ商品
 let files = [];           // 読み込んだファイル名
 let claims = {};          // itemId -> {by, name}
+let rejects = {};         // itemId -> {by, name, at}  ダメ印
 let me = null, myName = 'あなた';
 let db = null, userCap = null;
 let mode = 'bid';         // bid | all
@@ -797,7 +811,8 @@ function recalc(){ for (const r of rows) r.limit = limitOf(r); }
 function visible(){
   recalc();
   let v = rows.slice();
-  if (mode === 'bid') v = v.filter(bidable);
+  if (mode === 'bid') v = v.filter(r => bidable(r) && !rejects[r.id]);
+  else if (mode === 'ng') v = v.filter(r => rejects[r.id]);
   else if (mode === 'match') v = v.filter(r => r.limit !== null);
   const dir = sortDir;
   v.sort((a, b) => {
@@ -814,7 +829,7 @@ function visible(){
 }
 
 function updateTotals(){
-  const bids = rows.filter(bidable);
+  const bids = rows.filter(r => bidable(r) && !rejects[r.id]);
   const mine = bids.filter(r => claims[r.id] && claims[r.id].by === me);
   const sumCost = a => a.reduce((s, r) => s + cost(bidValue(r)), 0);
   const sumLo   = a => a.reduce((s, r) => s + lowGainAt(r), 0);
@@ -848,7 +863,8 @@ function render(){
   document.getElementById('empty').hidden = rows.length !== 0;
   document.getElementById('stats').hidden = rows.length === 0;
 
-  const bids = rows.filter(bidable);
+  const bids = rows.filter(r => bidable(r) && !rejects[r.id]);
+  const ngCount = rows.filter(r => rejects[r.id]).length;
   // ブランド内訳
   const bc = {};
   for (const r of rows) bc[r.brand] = (bc[r.brand] || 0) + 1;
@@ -926,6 +942,7 @@ function render(){
   document.getElementById('byWho').innerHTML = Object.entries(who)
     .map(([n, c]) => `${n} <b class="num">${c}</b>件`).join('　') || '';
   document.getElementById('fFree').textContent = bids.filter(r => !claims[r.id]).length;
+  document.getElementById('fNg').textContent = ngCount;
   document.getElementById('dlAll').disabled = mine.length === 0;
   const everyone = bids.filter(r => claims[r.id]);
   document.getElementById('dlEvery').disabled = everyone.length === 0;
@@ -949,7 +966,8 @@ function render(){
     const c = claims[r.id];
     const isMine = c && c.by === me;
     const tr = document.createElement('tr');
-    if (c) tr.className = isMine ? 'mine' : 'taken';
+    if (rejects[r.id]) tr.className = 'ngrow';
+    else if (c) tr.className = isMine ? 'mine' : 'taken';
 
     tr.innerHTML =
       `<td class="l"></td>` +
@@ -974,8 +992,12 @@ function render(){
     }
     fixCell.appendChild(makeFix(r));
     const cell = tr.lastElementChild;
+    const g0 = rejects[r.id];
     if (!bidable(r)){
       cell.innerHTML = '<span class="who">—</span>';
+    } else if (g0){
+      cell.appendChild(makeClaimBtn(r));
+      cell.appendChild(makeNgBtn(r));
     } else if (c && !isMine){
       cell.innerHTML = `<span class="who"><b>${c.name || '他の人'}</b> が担当</span>`;
     } else {
@@ -985,6 +1007,7 @@ function render(){
       btn.textContent = isMine ? '自分が担当' : '担当する';
       btn.addEventListener('click', () => toggleClaim(r, btn));
       cell.appendChild(btn);
+      cell.appendChild(makeNgBtn(r));
     }
     frag.appendChild(tr);
   }
@@ -1120,7 +1143,24 @@ document.getElementById('symClear').addEventListener('click', () => {
 document.getElementById('symModal').addEventListener('click', e => {
   if (e.target.id === 'symModal'){ document.getElementById('symModal').hidden = true; symTarget = null; render(); }
 });
+function makeNgBtn(r){
+  const g = rejects[r.id];
+  const b = document.createElement('button');
+  b.className = 'ng' + (g ? ' on' : '');
+  b.type = 'button';
+  b.textContent = g ? '× ダメ' : '×';
+  b.title = g ? (g.name || '') + ' がダメ印。押すと戻す' : 'この商品はダメだと記録する';
+  b.addEventListener('click', () => toggleReject(r, b));
+  return b;
+}
 function makeClaimBtn(r){
+  const g = rejects[r.id];
+  if (g){
+    const sp = document.createElement('span');
+    sp.className = 'who ngwho';
+    sp.innerHTML = `<b>${g.name || '誰か'}</b> がダメ`;
+    return sp;
+  }
   const c = claims[r.id], isMine = c && c.by === me;
   if (c && !isMine){
     const sp = document.createElement('span');
@@ -1141,7 +1181,7 @@ function renderCards(list){
   for (const r of list){
     const c = claims[r.id], isMine = c && c.by === me;
     const el = document.createElement('div');
-    el.className = 'card' + (c ? (isMine ? ' mine' : ' taken') : '');
+    el.className = 'card' + (rejects[r.id] ? ' ngrow' : (c ? (isMine ? ' mine' : ' taken') : ''));
     el.innerHTML =
       `<div class="top"><span class="mname">${r.key || '—'}</span>` +
       `<span class="rk rk-${r.rank}">${r.rank}</span>` +
@@ -1175,7 +1215,8 @@ function renderCards(list){
       acts.appendChild(a);
     }
     acts.appendChild(makeClaimBtn(r));
-    if (bidable(r)) acts.appendChild(makeFix(r));
+    if (bidable(r)) acts.appendChild(makeNgBtn(r));
+    if (bidable(r) && !rejects[r.id]) acts.appendChild(makeFix(r));
     frag.appendChild(el);
   }
   box.appendChild(frag);
@@ -1220,6 +1261,12 @@ async function initDb(){
       const v = snap.val() || {};
       claims = {};
       for (const k of Object.keys(v)) if (v[k] && v[k].by) claims[k] = v[k];
+      render();
+    });
+    fdb.ref('rejects').on('value', snap => {
+      const v = snap.val() || {};
+      rejects = {};
+      for (const k of Object.keys(v)) if (v[k] && v[k].by) rejects[k] = v[k];
       render();
     });
     fdb.ref('results').on('value', snap => {
@@ -1497,6 +1544,28 @@ document.getElementById('dlAll').addEventListener('click', () => {
   render();
   setTimeout(() => URL.revokeObjectURL(a.href), 3000);
 });
+async function setReject(r, on){
+  if (on){
+    const rec = { by: myName, name: myName, model: r.key || '',
+      item: String(r.name || '').slice(0, 80), at: Date.now() };
+    rejects[r.id] = rec;
+    if (fdb) await fdb.ref('rejects/' + r.id).set(rec);
+    // ダメにしたら担当は外す
+    if (claims[r.id] && claims[r.id].by === myName) await setClaim(r, false);
+  } else {
+    delete rejects[r.id];
+    if (fdb) await fdb.ref('rejects/' + r.id).remove();
+  }
+}
+async function toggleReject(r, btn){
+  if (needName()) return;
+  btn.disabled = true;
+  try { await setReject(r, !rejects[r.id]); }
+  catch(e){ flash('記録に失敗しました。もう一度押してください。'); }
+  btn.disabled = false;
+  render();
+}
+
 async function setClaim(r, on){
   if (on){
     const rec = { by: myName, name: myName, model: r.key || '', limit: r.limit || 0,
@@ -1528,7 +1597,7 @@ document.getElementById('autoPick').addEventListener('click', async e => {
   if (!bud){ flash('予算を入れてください。'); return; }
   e.target.disabled = true;
   let tot = myTotal();
-  const free = rows.filter(r => bidable(r) && !claims[r.id])
+  const free = rows.filter(r => bidable(r) && !claims[r.id] && !rejects[r.id])
     .sort((a, b) => highGain(b) - highGain(a));
   let n = 0;
   for (const r of free){
@@ -1571,7 +1640,7 @@ document.querySelectorAll('.pre').forEach(b => b.addEventListener('click', () =>
 }));
 
 document.getElementById('claimAll').addEventListener('click', async e => {
-  const free = visible().filter(r => bidable(r) && !claims[r.id]);
+  const free = visible().filter(r => bidable(r) && !claims[r.id] && !rejects[r.id]);
   if (!free.length){ flash('担当していない商品がありません。'); return; }
   const tot = free.reduce((s, r) => s + cost(r.limit), 0);
   if (!confirm(`表示中の ${free.length}件を全部あなたの担当にします。\n全部落ちた場合の支払いは ¥${tot.toLocaleString()} です。`)) return;
@@ -1633,7 +1702,7 @@ const denBox = document.getElementById('denChips');
 });
 
 const modeBox = document.getElementById('modeChips');
-[['bid','入札する分だけ'],['all','読み込んだ全部']].forEach(([v,l]) => {
+[['bid','入札する分だけ'],['ng','ダメ印だけ'],['all','読み込んだ全部']].forEach(([v,l]) => {
   const b = document.createElement('button');
   b.className = 'chip'; b.type = 'button'; b.textContent = l;
   b.setAttribute('aria-pressed', v === 'bid' ? 'true' : 'false');
