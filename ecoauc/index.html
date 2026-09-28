@@ -479,7 +479,7 @@ body.compact .card .kv b{font-size:16px}
         <thead><tr>
           <th class="l">写真</th>
           <th class="l">モデル</th><th class="l">ランク</th>
-          <th>入れた上限</th><th>落札額</th><th>仕入れ総額</th>
+          <th>入れた上限</th><th>落札額</th><th>差</th><th>仕入れ総額</th>
           <th>売れた値段</th><th>手残り</th><th class="l">状態</th>
         </tr></thead>
         <tbody id="rtb"></tbody>
@@ -664,10 +664,12 @@ function readCsv(file){
     const r = new FileReader();
     r.onload = () => {
       let text;
-      try { text = new TextDecoder('shift-jis').decode(r.result); }
-      catch(e){ text = new TextDecoder('utf-8').decode(r.result); }
-      if (!text.includes('商品ID')) {
-        try { text = new TextDecoder('utf-8').decode(r.result); } catch(e){}
+      // 正しいUTF-8なら UTF-8、そうでなければ Shift-JIS
+      try {
+        text = new TextDecoder('utf-8', { fatal: true }).decode(r.result);
+      } catch(e){
+        try { text = new TextDecoder('shift-jis').decode(r.result); }
+        catch(e2){ text = new TextDecoder('utf-8').decode(r.result); }
       }
       const parsed = Papa.parse(text, { header:true, skipEmptyLines:true });
       resolve(parsed.data);
@@ -708,6 +710,7 @@ async function loadFiles(list){
     files.push(f.name);
   }
   render();
+  linkResults();
   if (dup) flash(`${dup}個は読み込み済みのファイルなので飛ばしました`);
 }
 function flash(msg){
@@ -1330,12 +1333,18 @@ async function loadResultFiles(list){
       const price = priceKey ? numOf(d[priceKey]) : 0;
       const total = totalKey ? numOf(d[totalKey]) : 0;
       const nm = nameKey ? String(d[nameKey] || '') : '';
-      const src = rows.find(r => r.id === id) || rows.find(r => nm && r.name && nm.slice(0,24) === r.name.slice(0,24));
+      // 商品名の先頭にある管理番号（例 13604_0014）で下見リストと突き合わせる
+      const mg = (/\(([0-9]+_[0-9]+)\)/.exec(nm) || [])[1] || '';
+      const src = rows.find(r => r.id === id)
+        || (mg && rows.find(r => r.name && r.name.includes('(' + mg + ')')))
+        || (mg && rows.find(r => String(r.mgmt) === mg))
+        || rows.find(r => nm && r.name && nm.slice(0, 24) === r.name.slice(0, 24));
       const rec = {
         itemId: id, won: price > 0, price,
         total: total || (price ? cost(price) : 0),
         sold: (results[id] && results[id].sold) || 0,
         model: (src && src.key) || modelKey(nm) || (results[id] && results[id].model) || '',
+        mgmt: mg,
         rank: (rankKey ? String(d[rankKey]).trim() : '') || (src && src.rank) || '',
         limit: (src && src.limit) || (results[id] && results[id].limit) || 0,
         img: imgKey ? String(d[imgKey] || '') : '',
@@ -1352,6 +1361,30 @@ async function loadResultFiles(list){
   } else {
     flash(n ? `落札結果を ${n}件 記録しました。` : '落札結果が読み取れませんでした。CSVの形式を送ってください。');
   }
+}
+
+// 下見リストを読み込んだら、記録済みの落札結果に後から情報を足す
+async function linkResults(){
+  if (!rows.length) return;
+  let n = 0;
+  for (const id of Object.keys(results)){
+    const r = results[id];
+    if (r.rank && r.model && r.limit) continue;
+    const mg = (/\(([0-9]+_[0-9]+)\)/.exec(r.name || '') || [])[1] || '';
+    const src = rows.find(x => x.id === id)
+      || (mg && rows.find(x => x.name && x.name.includes('(' + mg + ')')))
+      || (mg && rows.find(x => String(x.mgmt) === mg));
+    if (!src) continue;
+    const upd = {};
+    if (!r.rank && src.rank){ r.rank = src.rank; upd.rank = src.rank; }
+    if (!r.model && src.key){ r.model = src.key; upd.model = src.key; }
+    if (!r.limit && src.limit){ r.limit = src.limit; upd.limit = src.limit; }
+    if (Object.keys(upd).length){
+      n++;
+      if (fdb){ try { await fdb.ref('results/' + id).update(upd); } catch(e){} }
+    }
+  }
+  if (n){ renderResults(); flash(`落札結果 ${n}件に、下見リストからランクとモデルを結びつけました。`); }
 }
 
 function renderResults(){
@@ -1381,11 +1414,13 @@ function renderResults(){
       `<td class="l"><span class="rk rk-${r.rank}">${r.rank || '—'}</span></td>` +
       `<td class="num dim">${r.limit ? r.limit.toLocaleString() : '—'}</td>` +
       `<td class="num bid">${r.won ? r.price.toLocaleString() : '—'}</td>` +
+      `<td class="num" style="font-weight:700;color:${(r.limit && r.won) ? (r.limit - r.price >= 0 ? 'var(--go)' : 'var(--ng)') : 'var(--ink2)'}">` +
+        `${(r.limit && r.won) ? money(r.limit - r.price) : '—'}</td>` +
       `<td class="num dim">${r.won ? (r.total || cost(r.price)).toLocaleString() : '—'}</td>` +
       `<td></td>` +
       `<td class="num" style="font-weight:800;color:${gainNow === null ? 'var(--ink2)' : (gainNow < 0 ? 'var(--ng)' : 'var(--go)')}">${gainNow === null ? '—' : money(gainNow)}</td>` +
       `<td class="l"><span class="st ${r.won ? (r.sold ? 'st-sold' : 'st-win') : 'st-lose'}">${r.won ? (r.sold ? '売れた' : '落札') : '取れず'}</span></td>`;
-    const cell = tr.children[6];
+    const cell = tr.children[7];
     if (r.won){
       const inp = document.createElement('input');
       inp.className = 'sold num'; inp.type = 'number'; inp.step = '1000';
