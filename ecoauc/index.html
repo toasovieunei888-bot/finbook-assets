@@ -892,6 +892,23 @@ function visible(){
   return v;
 }
 
+// 入力中は表を描き直さない（カーソルが外れて打てなくなるため）
+let renderWanted = false;
+function isTyping(){
+  const a = document.activeElement;
+  return !!(a && (a.classList.contains('manin') || a.id === 'myname' ||
+                  a.id === 'symQ' || a.id === 'symNewName' ||
+                  a.id === 'budget' || a.id === 'repair' || a.id === 'urlTpl'));
+}
+function renderSafe(){
+  if (isTyping()){ renderWanted = true; updateTotals(); return; }
+  renderWanted = false;
+  render();
+}
+document.addEventListener('focusout', () => {
+  setTimeout(() => { if (renderWanted && !isTyping()) renderSafe(); }, 60);
+});
+
 function updateTotals(){
   const bids = rows.filter(r => bidable(r) && !rejects[r.id]);
   const mine = bids.filter(r => claims[r.id] && claims[r.id].by === me);
@@ -1355,7 +1372,7 @@ async function initDb(){
     });
     fdb.ref('config/itemUrl').on('value', snap => {
       const v = snap.val();
-      if (v && v.tpl){ urlTpl = v.tpl; showUrl(); render(); }
+      if (v && v.tpl){ urlTpl = v.tpl; showUrl(); renderSafe(); }
     });
     fdb.ref('claims').on('value', snap => {
       const v = snap.val() || {};
@@ -1366,7 +1383,7 @@ async function initDb(){
     fdb.ref('extraSym').on('value', snap => {
       const v = snap.val() || {};
       extraSym = Object.keys(v).map(k => Object.assign({ id: k }, v[k]));
-      render();
+      renderSafe();
     });
     fdb.ref('notes').on('value', snap => {
       const srv = snap.val() || {};
@@ -1378,13 +1395,13 @@ async function initDb(){
       }
       notes = srv;
       applyNotes();
-      render();
+      renderSafe();
     });
     fdb.ref('rejects').on('value', snap => {
       const v = snap.val() || {};
       rejects = {};
       for (const k of Object.keys(v)) if (v[k] && v[k].by) rejects[k] = v[k];
-      render();
+      renderSafe();
     });
     fdb.ref('results').on('value', snap => {
       results = snap.val() || {};
@@ -1795,8 +1812,10 @@ document.getElementById('urlSave').addEventListener('click', async () => {
   showUrl(); render();
   flash('覚えました。全部の行に「写真」が出ます。');
 });
-document.getElementById('budget').addEventListener('input', render);
-document.getElementById('repair').addEventListener('input', render);
+document.getElementById('budget').addEventListener('input', updateTotals);
+document.getElementById('budget').addEventListener('change', render);
+document.getElementById('repair').addEventListener('input', updateTotals);
+document.getElementById('repair').addEventListener('change', render);
 document.querySelectorAll('.pre').forEach(b => b.addEventListener('click', () => {
   document.getElementById('budget').value = b.dataset.b; render();
 }));
