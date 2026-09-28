@@ -354,6 +354,21 @@ tbody tr.ngrow:hover{background:#332E29!important}
 #symQ{width:100%;font:inherit;font-size:15px;font-weight:600;padding:10px 13px;margin-bottom:10px;
   border:2px solid var(--rule);border-radius:9px;background:var(--paper);color:var(--ink)}
 #symQ:focus{border-color:var(--vi);outline:none}
+.addsym{margin-top:14px;padding:12px 14px;border-radius:10px;
+  background:var(--go-soft);border:2px solid var(--go)}
+.addsym b{display:block;font-size:13px;font-weight:800;color:var(--go);margin-bottom:8px}
+.addrow{display:flex;gap:7px;flex-wrap:wrap}
+.addrow input{flex:1;min-width:170px;font:inherit;font-size:14px;font-weight:600;padding:8px 11px;
+  border:2px solid var(--rule);border-radius:8px;background:var(--panel);color:var(--ink)}
+.addrow select{font:inherit;font-size:13px;font-weight:700;padding:8px 10px;
+  border:2px solid var(--rule);border-radius:8px;background:var(--panel);color:var(--ink)}
+.addrow button{font:inherit;font-size:14px;font-weight:800;cursor:pointer;padding:9px 20px;
+  border-radius:8px;border:2px solid var(--go);background:var(--go);color:#fff}
+.sym.mine2{border-style:dashed;border-color:var(--go)}
+.symdel{font:inherit;font-size:11px;font-weight:800;cursor:pointer;border:0;background:transparent;
+  color:var(--ink2);padding:1px 5px;border-radius:4px;margin-left:5px}
+.symdel:hover{background:var(--ng-soft);color:var(--ng)}
+
 .picked{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;min-height:0}
 .picked .pk{font-size:12.5px;font-weight:800;padding:5px 10px;border-radius:999px;
   background:var(--go);color:#fff;display:inline-flex;gap:6px;align-items:center;cursor:pointer}
@@ -551,6 +566,8 @@ tbody tr.ngrow:hover{background:#332E29!important}
     <b>ランク</b>で売値が変わる：A・ABは状態がいいので高く、C・Fは安く見積もる。<br>
     <b>直さない／1段階直す／しっかり直す</b>の3択。A・ABは「直さない」、それ以外は「1段階直す」が最初から選ばれている。<br>
     売値は実際のメルカリ相場（個人・売り切れ）を、傷や汚れあり／やや傷や汚れあり／目立った傷なし の3つで測った数字。<br>
+    <b>直す所</b>で選んだ内容・手で決めた金額・直し方は自動で保存され、画面を更新しても消えない。メンバー全員に共有される。<br>
+    直す所が足りないときは、ピッカーの下の欄から自分で足せる。足したものは全員の画面に残る。<br>
     <b>直す所を選ぶ</b>でリペアマニュアルの101症例から該当するものを選べる。書き出すCSVのメモ欄に入る。<br>
     <b>写真</b>は下見ページを「ウェブページ、完全」で保存してできる <b>_files フォルダ</b>を入れると出る。画像のファイル名にある商品管理番号で自動で結びつく。タップで拡大。<br>
     <b>×</b>を押すと「この商品はダメ」とメンバー全員に共有される。担当からも書き出しからも外れる。もう一度押せば戻る。<br>
@@ -570,6 +587,14 @@ tbody tr.ngrow:hover{background:#332E29!important}
     <input type="search" id="symQ" placeholder="症状で探す（例：角スレ、黒ずみ、サビ）">
     <div class="picked" id="symPicked"></div>
     <div id="symBody"></div>
+    <div class="addsym">
+      <b>ないときは自分で足す</b>
+      <div class="addrow">
+        <input type="text" id="symNewName" placeholder="直す内容（例：留め具のゆるみ）" maxlength="24">
+        <select id="symNewGroup"></select>
+        <button type="button" id="symAdd">足す</button>
+      </div>
+    </div>
     <div class="close">
       <button type="button" class="sub" id="symClear">全部外す</button>
       <button type="button" id="symDone">決定</button>
@@ -682,6 +707,8 @@ let rows = [];            // 読み込んだ商品
 let files = [];           // 読み込んだファイル名
 let claims = {};          // itemId -> {by, name}
 let rejects = {};         // itemId -> {by, name, at}  ダメ印
+let notes   = {};         // itemId -> {stage, manual, syms}  作業中の設定
+let extraSym = [];        // 自分たちで足した「直す場所」
 let me = null, myName = 'あなた';
 let db = null, userCap = null;
 let mode = 'bid';         // bid | all
@@ -746,6 +773,7 @@ async function loadFiles(list){
     }
     files.push(f.name);
   }
+  applyNotes();
   render();
   linkResults();
   if (dup) flash(`${dup}個は読み込み済みのファイルなので飛ばしました`);
@@ -1052,6 +1080,7 @@ function makeManual(r){
     const v = parseInt(inp.value, 10);
     r.manual = (isNaN(v) || v <= 0) ? null : v;
     inp.classList.toggle('on', !!r.manual);
+    saveNote(r);
     // その行の「手で決めた金額」の行だけ描き直す
     const tr = inp.closest('tr') || inp.closest('.card');
     if (tr){
@@ -1065,7 +1094,7 @@ function makeManual(r){
     const x = document.createElement('button');
     x.type = 'button'; x.className = 'manx'; x.textContent = '×';
     x.title = '自動に戻す';
-    x.addEventListener('click', () => { r.manual = null; render(); });
+    x.addEventListener('click', () => { r.manual = null; saveNote(r); render(); });
     wrap.appendChild(x);
   }
   return wrap;
@@ -1079,7 +1108,7 @@ function makeFix(r){
     b.className = 'tg st' + st; b.type = 'button';
     b.setAttribute('aria-pressed', r.stage === st ? 'true' : 'false');
     b.textContent = STAGE_NAME[st];
-    b.addEventListener('click', () => { r.stage = st; render(); });
+    b.addEventListener('click', () => { r.stage = st; saveNote(r); render(); });
     wrap.appendChild(b);
   }
   if (r.stage !== 1){
@@ -1119,13 +1148,22 @@ function drawSym(q){
     wrap.className = 'symlist';
     for (const sy of list){
       const b = document.createElement('button');
-      b.className = 'sym' + (sy.v === '不可' ? ' x' : '');
+      b.className = 'sym' + (sy.v === '不可' ? ' x' : '') + (sy.own ? ' mine2' : '');
       b.type = 'button';
       b.setAttribute('aria-pressed', r.syms.includes(sy.id) ? 'true' : 'false');
-      b.innerHTML = `${symMark(sy.v)} ${sy.sym}<small>${sy.p}</small>`;
+      b.innerHTML = `${symMark(sy.v)} ${sy.sym}<small>${sy.p}${sy.own ? '　<span class="symdel" data-del="' + sy.id + '">消す</span>' : ''}</small>`;
       b.addEventListener('click', () => {
         const i = r.syms.indexOf(sy.id);
         if (i >= 0) r.syms.splice(i, 1); else r.syms.push(sy.id);
+        saveNote(r);
+        drawSym(document.getElementById('symQ').value);
+      });
+      const dl = b.querySelector('[data-del]');
+      if (dl) dl.addEventListener('click', async ev => {
+        ev.stopPropagation();
+        if (!confirm(`「${sy.sym}」を消します。`)) return;
+        if (fdb) await fdb.ref('extraSym/' + sy.id).remove().catch(()=>{});
+        extraSym = extraSym.filter(x => x.id !== sy.id);
         drawSym(document.getElementById('symQ').value);
       });
       wrap.appendChild(b);
@@ -1134,22 +1172,25 @@ function drawSym(q){
     body.appendChild(g);
   };
 
-  if (!nq) mk(SYMPTOMS.filter(s => s.c), 'よく使う', true);
+  const ALL = allSym();
+  if (!nq) mk(ALL.filter(s => s.c), 'よく使う', true);
+  if (!nq) mk(extraSym.filter(hit), '自分たちで足したもの', true);
   const order = ['角・フチ','持ち手・ショルダー','内装','金具・ファスナー','本体の表面','コバ（フチの断面）','ヌメ革の部分','底'];
-  for (const g of order) mk(SYMPTOMS.filter(s => s.g === g && hit(s)), g, false);
+  for (const g of order) mk(ALL.filter(s => s.g === g && hit(s) && !s.own), g, false);
   if (nq && !body.children.length) body.innerHTML = '<div class="sub2">見つかりませんでした</div>';
 
   // 選んだものを上に出す
   const pk = document.getElementById('symPicked');
   pk.innerHTML = '';
   for (const id of r.syms){
-    const sy = SYMPTOMS.find(x => x.id === id); if (!sy) continue;
+    const sy = allSym().find(x => x.id === id); if (!sy) continue;
     const el = document.createElement('span');
     el.className = 'pk';
     el.innerHTML = `${symMark(sy.v)} ${sy.sym} <b>×</b>`;
     el.title = sy.p + ' / 外す';
     el.addEventListener('click', () => {
       r.syms.splice(r.syms.indexOf(id), 1);
+      saveNote(r);
       drawSym(document.getElementById('symQ').value);
     });
     pk.appendChild(el);
@@ -1157,11 +1198,31 @@ function drawSym(q){
   document.getElementById('symModal').hidden = false;
 }
 document.getElementById('symQ').addEventListener('input', e => drawSym(e.target.value));
+
+const GROUPS = ['角・フチ','持ち手・ショルダー','内装','金具・ファスナー','本体の表面','コバ（フチの断面）','ヌメ革の部分','底','その他'];
+(function(){
+  const sel = document.getElementById('symNewGroup');
+  for (const g of GROUPS){ const o = document.createElement('option'); o.value = g; o.textContent = g; sel.appendChild(o); }
+})();
+document.getElementById('symAdd').addEventListener('click', async () => {
+  if (needName()) return;
+  const nm = document.getElementById('symNewName').value.trim();
+  if (!nm){ flash('直す内容を書いてください。'); return; }
+  const grp = document.getElementById('symNewGroup').value;
+  const id = 'u' + Date.now().toString(36);
+  const rec = { sym: nm, p: grp, g: grp, m: '', v: '直る', c: 0, own: 1, by: myName, at: Date.now() };
+  extraSym.push(Object.assign({ id }, rec));
+  if (fdb){ try { await fdb.ref('extraSym/' + id).set(rec); } catch(e){ flash('保存に失敗しました。'); } }
+  document.getElementById('symNewName').value = '';
+  if (symTarget && !symTarget.syms.includes(id)){ symTarget.syms.push(id); saveNote(symTarget); }
+  drawSym('');
+  flash(`「${nm}」を足しました。全員の画面に出ます。`);
+});
 document.getElementById('symDone').addEventListener('click', () => {
   document.getElementById('symModal').hidden = true; symTarget = null; render();
 });
 document.getElementById('symClear').addEventListener('click', () => {
-  if (symTarget) symTarget.syms = [];
+  if (symTarget){ symTarget.syms = []; saveNote(symTarget); }
   document.getElementById('symModal').hidden = true; symTarget = null; render();
 });
 document.getElementById('symModal').addEventListener('click', e => {
@@ -1285,6 +1346,16 @@ async function initDb(){
       const v = snap.val() || {};
       claims = {};
       for (const k of Object.keys(v)) if (v[k] && v[k].by) claims[k] = v[k];
+      render();
+    });
+    fdb.ref('extraSym').on('value', snap => {
+      const v = snap.val() || {};
+      extraSym = Object.keys(v).map(k => Object.assign({ id: k }, v[k]));
+      render();
+    });
+    fdb.ref('notes').on('value', snap => {
+      notes = snap.val() || {};
+      applyNotes();
       render();
     });
     fdb.ref('rejects').on('value', snap => {
@@ -1547,7 +1618,7 @@ function toCsv(list, withWho){
       const s = String(v == null ? '' : v);
       return /[",\n]/.test(s) ? '"' + s.split('"').join('""') + '"' : s;
     };
-    const symText = r.syms.map(id => { const x = SYMPTOMS.find(y => y.id === id); return x ? (x.g + '/' + x.sym) : id; }).join('、');
+    const symText = r.syms.map(id => { const x = allSym().find(y => y.id === id); return x ? (x.g + '/' + x.sym) : id; }).join('、');
     let memo = r.stage === 1 ? '' : (STAGE_NAME[r.stage] + (symText ? ' ' + symText : ''));
     if (r.manual) memo = (memo ? memo + ' ' : '') + '手入力';
     if (withWho && claims[r.id]) memo = (claims[r.id].name || '') + (memo ? ' ' + memo : '');
@@ -1568,6 +1639,28 @@ document.getElementById('dlAll').addEventListener('click', () => {
   render();
   setTimeout(() => URL.revokeObjectURL(a.href), 3000);
 });
+function allSym(){ return SYMPTOMS.concat(extraSym); }
+
+function applyNotes(){
+  for (const r of rows){
+    const n = notes[r.id];
+    if (!n) continue;
+    if (n.stage) r.stage = n.stage;
+    r.manual = n.manual || null;
+    r.syms = Array.isArray(n.syms) ? n.syms.slice() : [];
+  }
+}
+let saveTimer = null;
+function saveNote(r){
+  const n = { stage: r.stage, manual: r.manual || 0, syms: r.syms || [] };
+  notes[r.id] = n;
+  if (!fdb) return;
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    fdb.ref('notes/' + r.id).set(n).catch(() => {});
+  }, 400);
+}
+
 async function setReject(r, on){
   if (on){
     const rec = { by: myName, name: myName, model: r.key || '',
