@@ -110,6 +110,9 @@ main{max-width:1240px;margin:0 auto;padding:14px 14px 90px}
 .drop.small p{margin:0;font-size:13.5px;font-weight:700;color:var(--ink2)}
 .drop.small.on{border-color:var(--ai);background:var(--ai-soft)}
 .rstats{display:flex;gap:26px;flex-wrap:wrap;margin:14px 0 10px}
+#rclear{font:inherit;font-size:13px;font-weight:700;cursor:pointer;padding:8px 16px;
+  border-radius:999px;border:2px solid var(--ng);background:transparent;color:var(--ng)}
+#rclear:hover{background:var(--ng);color:#fff}
 .sold{font:inherit;font-size:14px;font-weight:700;text-align:right;width:96px;padding:5px 8px;
   border:2px solid var(--rule);border-radius:6px;background:var(--paper);color:var(--ink);
   font-variant-numeric:tabular-nums}
@@ -468,9 +471,13 @@ body.compact .card .kv b{font-size:16px}
       <input type="file" id="file2" accept=".csv" multiple>
     </div>
     <div class="rstats" id="rstats" hidden></div>
+    <div id="rclearwrap" hidden style="margin:6px 0 10px">
+      <button type="button" id="rclear">記録を全部消す</button>
+    </div>
     <div class="scroll" id="rwrap" hidden>
       <table>
         <thead><tr>
+          <th class="l">写真</th>
           <th class="l">モデル</th><th class="l">ランク</th>
           <th>入れた上限</th><th>落札額</th><th>仕入れ総額</th>
           <th>売れた値段</th><th>手残り</th><th class="l">状態</th>
@@ -1301,26 +1308,38 @@ let results = {};   // itemId -> {won, price, sold, model, rank, limit, name}
 function numOf(v){ return parseInt(String(v == null ? '' : v).replace(/[^\d]/g, ''), 10) || 0; }
 
 async function loadResultFiles(list){
-  let n = 0;
+  let n = 0, skipped = 0;
   for (const f of list){
     const data = await readCsv(f);
+    const cols = data.length ? Object.keys(data[0]) : [];
+    const hasPrice = cols.some(k => /落札(価格|金額)|約定|Winning|Hammer|bid_price|buy_total/i.test(k));
+    if (!hasPrice){
+      skipped++;
+      continue;
+    }
+    const keys = cols;
+    const idKey    = keys.find(k => /^buyout_number$/i.test(k)) || keys.find(k => /商品ID|商品番号|Item ID/i.test(k)) || keys[0];
+    const priceKey = keys.find(k => /^bid_price$/i.test(k))     || keys.find(k => /落札(価格|金額)|約定|Winning|Hammer/i.test(k));
+    const totalKey = keys.find(k => /^buy_total$/i.test(k))     || keys.find(k => /落札合計/i.test(k));
+    const nameKey  = keys.find(k => /^item_name$/i.test(k))     || keys.find(k => /商品名|Item name/i.test(k));
+    const rankKey  = keys.find(k => /ランク|^rank$/i.test(k));
+    const imgKey   = keys.find(k => /^image_01$/i.test(k));
     for (const d of data){
-      const keys = Object.keys(d);
-      const idKey = keys.find(k => /商品ID|商品番号|Item ID/i.test(k)) || keys[0];
       const id = String(d[idKey] || '').trim();
-      if (!id || !/^\d+$/.test(id)) continue;
-      const priceKey = keys.find(k => /落札(価格|金額)|約定|Winning|Hammer/i.test(k));
+      if (!id || !/^\d+$/.test(id)) continue;   // 見出しの日本語行はここで落ちる
       const price = priceKey ? numOf(d[priceKey]) : 0;
-      const nameKey = keys.find(k => /商品名|Item name/i.test(k));
-      const rankKey = keys.find(k => /ランク|Rank/i.test(k));
-      const src = rows.find(r => r.id === id);
+      const total = totalKey ? numOf(d[totalKey]) : 0;
+      const nm = nameKey ? String(d[nameKey] || '') : '';
+      const src = rows.find(r => r.id === id) || rows.find(r => nm && r.name && nm.slice(0,24) === r.name.slice(0,24));
       const rec = {
         itemId: id, won: price > 0, price,
+        total: total || (price ? cost(price) : 0),
         sold: (results[id] && results[id].sold) || 0,
-        model: (src && src.key) || (results[id] && results[id].model) || '',
+        model: (src && src.key) || modelKey(nm) || (results[id] && results[id].model) || '',
         rank: (rankKey ? String(d[rankKey]).trim() : '') || (src && src.rank) || '',
         limit: (src && src.limit) || (results[id] && results[id].limit) || 0,
-        name: (nameKey ? String(d[nameKey]) : '') || (src && src.name) || '',
+        img: imgKey ? String(d[imgKey] || '') : '',
+        name: nm || (src && src.name) || '',
         at: Date.now()
       };
       results[id] = rec; n++;
@@ -1328,17 +1347,22 @@ async function loadResultFiles(list){
     }
   }
   renderResults();
-  flash(n ? `落札結果を ${n}件 記録しました。` : '落札結果が読み取れませんでした。CSVの形式を送ってください。');
+  if (skipped && !n){
+    flash('これは落札結果のCSVではありません。落札価格が入った結果のCSVを入れてください。（下見リストは上の枠へ）');
+  } else {
+    flash(n ? `落札結果を ${n}件 記録しました。` : '落札結果が読み取れませんでした。CSVの形式を送ってください。');
+  }
 }
 
 function renderResults(){
   const arr = Object.values(results);
   document.getElementById('rwrap').hidden = arr.length === 0;
   document.getElementById('rstats').hidden = arr.length === 0;
+  document.getElementById('rclearwrap').hidden = arr.length === 0;
   if (!arr.length) return;
   const won = arr.filter(r => r.won);
   const sold = won.filter(r => r.sold > 0);
-  const profit = sold.reduce((s, r) => s + (Math.round(net(r.sold) - cost(r.price))), 0);
+  const profit = sold.reduce((s, r) => s + (Math.round(net(r.sold) - (r.total || cost(r.price)))), 0);
   const rate = arr.length ? Math.round(won.length / arr.length * 100) : 0;
   document.getElementById('rstats').innerHTML =
     `<div class="stat"><span>入札した</span><b class="num">${arr.length}</b></div>` +
@@ -1350,17 +1374,18 @@ function renderResults(){
   tb.innerHTML = '';
   for (const r of arr.sort((a, b) => (b.won - a.won) || b.price - a.price)){
     const tr = document.createElement('tr');
-    const gainNow = r.won && r.sold ? Math.round(net(r.sold) - cost(r.price)) : null;
+    const gainNow = r.won && r.sold ? Math.round(net(r.sold) - (r.total || cost(r.price))) : null;
     tr.innerHTML =
-      `<td class="l"><span class="model">${r.model || '—'}</span></td>` +
+      `<td class="l">${r.img ? `<img class="thumb" src="${r.img}" loading="lazy" alt="">` : '<div class="nothumb"></div>'}</td>` +
+      `<td class="l"><span class="model">${r.model || '—'}</span>${r.name ? `<div class="dim" style="font-size:11px;font-weight:500;max-width:280px;white-space:normal">${r.name.slice(0,60)}</div>` : ''}</td>` +
       `<td class="l"><span class="rk rk-${r.rank}">${r.rank || '—'}</span></td>` +
       `<td class="num dim">${r.limit ? r.limit.toLocaleString() : '—'}</td>` +
       `<td class="num bid">${r.won ? r.price.toLocaleString() : '—'}</td>` +
-      `<td class="num dim">${r.won ? cost(r.price).toLocaleString() : '—'}</td>` +
+      `<td class="num dim">${r.won ? (r.total || cost(r.price)).toLocaleString() : '—'}</td>` +
       `<td></td>` +
       `<td class="num" style="font-weight:800;color:${gainNow === null ? 'var(--ink2)' : (gainNow < 0 ? 'var(--ng)' : 'var(--go)')}">${gainNow === null ? '—' : money(gainNow)}</td>` +
       `<td class="l"><span class="st ${r.won ? (r.sold ? 'st-sold' : 'st-win') : 'st-lose'}">${r.won ? (r.sold ? '売れた' : '落札') : '取れず'}</span></td>`;
-    const cell = tr.children[5];
+    const cell = tr.children[6];
     if (r.won){
       const inp = document.createElement('input');
       inp.className = 'sold num'; inp.type = 'number'; inp.step = '1000';
@@ -1372,9 +1397,26 @@ function renderResults(){
       });
       cell.appendChild(inp);
     } else cell.innerHTML = '<span class="dim">—</span>';
+    const im = tr.querySelector('img.thumb');
+    if (im) im.addEventListener('click', () => {
+      document.getElementById('lightimg').src = im.src;
+      document.getElementById('lightbox').hidden = false;
+    });
     tb.appendChild(tr);
   }
 }
+
+document.getElementById('rclear').addEventListener('click', async e => {
+  const n = Object.keys(results).length;
+  if (!n) return;
+  if (!confirm(`落札結果の記録 ${n}件をすべて消します。よろしいですか。`)) return;
+  e.target.disabled = true;
+  try { if (fdb) await fdb.ref('results').remove(); } catch(err){}
+  results = {};
+  renderResults();
+  e.target.disabled = false;
+  flash('落札結果の記録を消しました。');
+});
 
 const drop2 = document.getElementById('drop2');
 const file2 = document.getElementById('file2');
