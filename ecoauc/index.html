@@ -490,7 +490,7 @@ body.compact .card .kv b{font-size:16px}
           <th class="l" data-sort="order">出品順</th>
           <th class="l" data-sort="model">モデル</th>
           <th class="l">ランク</th>
-          <th data-sort="start">開始価格</th>
+          <th data-sort="start" id="thStart">開始価格</th>
           <th class="l" data-sort="gainStart">いくらまで入れる／手残り（最低〜最高）</th>
           <th class="l">手で決める</th>
           <th class="l">直す</th>
@@ -680,10 +680,11 @@ async function loadFiles(list){
       if (!id || id === 'Item ID') continue;
       if (seen.has(id)) continue;
       seen.add(id);
+      const pick = (...keys) => { for (const k of keys) if (d[k] !== undefined && d[k] !== '') return d[k]; return ''; };
       const name = String(d['商品名'] || '');
       const key = modelKey(name);
       const lim = key ? LIMMAP[key] : null;
-      const start = parseInt(String(d['開始価格'] || '0').replace(/[^\d]/g, ''), 10) || 0;
+      const start = parseInt(String(pick('開始価格','現在価格','スタート価格') || '0').replace(/[^\d]/g, ''), 10) || 0;
       rows.push({
         id, no: parseInt(d['出品順'] || '0', 10) || 0,
         mgmt: String(d['商品管理番号'] || ''),
@@ -692,7 +693,8 @@ async function loadFiles(list){
         s1: lim ? lim.s1 : 0, s2: lim ? lim.s2 : 0, s3: lim ? lim.s3 : 0,
         stage: ['N','S','A','AB'].includes(String(d['ランク']||'').trim()) ? 1 : 2,
         syms: [], bidded: false,
-        date: String(d['開始予定日'] || ''), lot: f.name, brand: brandOf(name)
+        date: String(pick('開始予定日','終了日','開催日') || ''), lot: f.name, brand: brandOf(name),
+        isTimeLimit: d['現在価格'] !== undefined
       });
       added++;
     }
@@ -896,6 +898,9 @@ function render(){
       `<span style="font-size:14px;color:var(--ink2)"> 〜 </span>` +
       `<span style="color:var(--go)">${f(hi)}</span>`;
   };
+  const anyTL = rows.some(r => r.isTimeLimit);
+  const thS = document.getElementById('thStart');
+  if (thS) thS.textContent = anyTL ? '現在価格' : '開始価格';
   document.getElementById('aBid').textContent = bids.length;
   document.getElementById('hcount').textContent = rows.length
     ? `読み込み ${rows.length}件 ／ 入札する ${bids.length}件 ／ 表示中 ${list.length}件`
@@ -1384,7 +1389,10 @@ drop2.addEventListener('drop', e => {
 
 /* ───────── 書き出し ───────── */
 function toCsv(list, withWho){
-  const head = ['商品ID','商品管理番号','商品名','出品順','ランク','開始価格','事前入札価格','メモ','開始予定日','税額控除対象外'];
+  const tl = list.length && list[0].isTimeLimit;
+  const head = tl
+    ? ['商品ID','商品管理番号','商品名','出品順','ランク','現在価格','入札価格','メモ','終了日','税額控除対象外']
+    : ['商品ID','商品管理番号','商品名','出品順','ランク','開始価格','事前入札価格','メモ','開始予定日','税額控除対象外'];
   const lines = [head.join(',')];
   for (const r of list){
     const cell = v => {
