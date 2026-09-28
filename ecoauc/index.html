@@ -894,19 +894,25 @@ function visible(){
 
 // 入力中は表を描き直さない（カーソルが外れて打てなくなるため）
 let renderWanted = false;
+let typingEl = null;
+function isTextField(el){
+  if (!el) return false;
+  const tag = (el.tagName || '').toUpperCase();
+  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
+}
+document.addEventListener('focusin', e => { if (isTextField(e.target)) typingEl = e.target; });
 function isTyping(){
-  const a = document.activeElement;
-  return !!(a && (a.classList.contains('manin') || a.id === 'myname' ||
-                  a.id === 'symQ' || a.id === 'symNewName' ||
-                  a.id === 'budget' || a.id === 'repair' || a.id === 'urlTpl'));
+  if (typingEl && typingEl.isConnected && document.activeElement === typingEl) return true;
+  return isTextField(document.activeElement);
 }
 function renderSafe(){
   if (isTyping()){ renderWanted = true; updateTotals(); return; }
   renderWanted = false;
   render();
 }
-document.addEventListener('focusout', () => {
-  setTimeout(() => { if (renderWanted && !isTyping()) renderSafe(); }, 60);
+document.addEventListener('focusout', e => {
+  if (e.target === typingEl) typingEl = null;
+  setTimeout(() => { if (renderWanted && !isTyping()) renderSafe(); }, 80);
 });
 
 function updateTotals(){
@@ -1353,7 +1359,7 @@ async function initDb(){
     myName = nameInput.value.trim();
     me = myName || null;
     try { localStorage.setItem('ecoauc.name', myName); } catch(e){}
-    render();
+    renderSafe();
   });
 
   const cn = document.getElementById('conn');
@@ -1378,7 +1384,7 @@ async function initDb(){
       const v = snap.val() || {};
       claims = {};
       for (const k of Object.keys(v)) if (v[k] && v[k].by) claims[k] = v[k];
-      render();
+      renderSafe();
     });
     fdb.ref('extraSym').on('value', snap => {
       const v = snap.val() || {};
@@ -1395,6 +1401,8 @@ async function initDb(){
       }
       notes = srv;
       applyNotes();
+      // 自分の書き込みが返ってきただけなら、表は描き直さない
+      if (Date.now() - selfWrite < 1500){ updateTotals(); return; }
       renderSafe();
     });
     fdb.ref('rejects').on('value', snap => {
@@ -1691,9 +1699,11 @@ function applyNotes(){
   }
 }
 const saveTimers = {};   // 商品ごとにタイマーを持つ（混ざって消えないように）
+let selfWrite = 0;
 function flushNote(id){
   const n = pending[id];
   if (!n || !fdb) return;
+  selfWrite = Date.now();
   delete pending[id];
   clearTimeout(saveTimers[id]); delete saveTimers[id];
   fdb.ref('notes/' + id).set(n)
