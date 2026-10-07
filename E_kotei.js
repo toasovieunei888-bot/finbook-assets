@@ -7,7 +7,7 @@
         例) "https://vimeo.com/1182236319/ab12cd34ef"   ← 限定公開はハッシュ込みで貼る
       空（""）のままの項目は「動画準備中」で表示され、問い合わせボタンだけ使える
     サムネ: th に16:9の画像URLを入れると、カードの絵文字が画像に置き換わる
-    問い合わせ先: url が空なら公式LINE。申込フォーム等を使う場合は url に入れる（その場合 kw のコピーは行わない）
+    問い合わせ先: url が空なら公式LINE（項目に line があればそのLINE、なければ LINE）。申込フォーム等を使う場合は url に入れる（その場合 kw のコピーは行わない）
     purge URL:
       https://purge.jsdelivr.net/gh/toasovieunei888-bot/finbook-assets@main/E_kotei.js
 */
@@ -15,13 +15,14 @@
   'use strict';
 
   /* ====== 設定（ここだけ触ればOK） ====== */
-  var LINE = 'https://lin.ee/vTbbZPM';
+  var LINE = 'https://lin.ee/vTbbZPM';   // 通常の公式LINE（ネット回線・家計相談）
+  var LINE2 = 'https://lin.ee/NjNhA0E';  // 固定費用の公式LINE（スマホ代・ウォーターサーバー・プロパンガス）
   var ICON = 'https://cdn.prod.website-files.com/69bcd664c814f802dfc1f9bc/6a70262adc811fd00ef5f195_10003.png'; // 固定費削減のキャラ画像
   var ITEMS = [
     {
       n: 'スマホ代', d: 'スマホ代を無料・格安にしたい方', e: '📱', c: ['#CFEDFB', '#9BD5F3'],
       lead: '今の料金と使い方を確認して、乗り換え先の候補と月々の目安をお伝えします。',
-      cta: 'LINEでスマホ代を相談する', kw: 'スマホ代の相談', v: '', th: '', url: ''
+      cta: 'LINEでスマホ代を相談する', kw: 'スマホ代の相談', v: '', th: '', url: '', line: LINE2
     },
     {
       n: 'ネット回線', d: 'ネット回線を無料・格安にしたい方', e: '🌐', c: ['#D6E4FB', '#A9C4F3'],
@@ -31,12 +32,12 @@
     {
       n: 'ウォーターサーバー', d: '今のウォーターサーバーを乗り換えたい方', e: '💧', c: ['#D2F1F5', '#A8E0EA'],
       lead: '今の契約内容と解約金を確認したうえで、乗り換えた場合の目安をお伝えします。',
-      cta: 'LINEでウォーターサーバーを相談する', kw: 'ウォーターサーバーの相談', v: '', th: '', url: ''
+      cta: 'LINEでウォーターサーバーを相談する', kw: 'ウォーターサーバーの相談', v: '', th: '', url: '', line: LINE2
     },
     {
       n: 'プロパンガス', d: 'プロパンガスの会社を切り替えたい方', e: '🔥', c: ['#FFE3CF', '#FFBE94'],
       lead: '今のガス代の明細を見て、切り替えた場合の目安をお伝えします。賃貸の場合は、大家さん・管理会社への確認が先に必要です。',
-      cta: 'LINEでプロパンガスを相談する', kw: 'プロパンガスの相談', v: '', th: '', url: ''
+      cta: 'LINEでプロパンガスを相談する', kw: 'プロパンガスの相談', v: '', th: '', url: '', line: LINE2
     },
     {
       n: '家計相談', d: '支払いと収入をまとめて見直したい方', e: '📒', c: ['#C6EBDB', '#95D8BC'],
@@ -188,7 +189,7 @@
       cta.href = it.url; cta.removeAttribute('data-kt-kw');
       $('ktHint').textContent = '';
     } else {
-      cta.href = LINE; cta.setAttribute('data-kt-kw', it.kw);
+      cta.href = it.line || LINE; cta.setAttribute('data-kt-kw', it.kw);
       $('ktHint').textContent = 'ボタンを押すと合言葉「' + it.kw + '」がコピーされます。LINEに貼って送信してください';
     }
     var fr = $('ktFrame');
