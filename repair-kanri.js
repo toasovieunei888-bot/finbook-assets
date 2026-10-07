@@ -1,4 +1,3 @@
-
 var DATA={items:[],masters:{},types:[],config:{},stats:{},status:[],places:[],reject:[],today:''};
 var cur=null, photosB=[], photosA=[], curParts=[], curCases=[], fStatus='', actor='', pending=null;
 var COLOR={'検討中':'#7d7565','購入済':'#8a8fa8','仕入済':'#2c7fa3','未割当':'#7b58a3','作業中':'#e0901c',
@@ -9,7 +8,8 @@ var MAT=['ヌメ革','レザー','エナメル','金具','コバ','内装','エ�
 var RANK=['S　新品同様','A　ほぼキレイ','B　使用感あり','C　傷や汚れ多め','D　かなり傷んでいる','E　ジャンク'];
 var F=['ブランド','型','商品名','素材','状態ランク','症状','所在','登録日','状態変更日','査定先','査定額','仕入れ担当','仕入先','仕入日','仕入値','想定売値',
   'リペア担当','着手日','期限日','材料費','検品者','検品日','差戻回数','差戻理由',
-  '売却先','売却日','売却額','手数料','送料','ステータス','備考'];
+  '売却先','売却日','売却額','手数料','送料','ステータス','備考',
+  'リペア取り分','仕入れ取り分','リペア精算済','仕入れ精算済','精算日'];
 
 var BEFORE=['前','後ろ','横','逆の横','角','逆の角','取っ手','取っ手のアップ','中身','ロゴ','ファスナーの金具','シリアル'];
 var PARTS=['持ち手','コバ','内装','金具','底・角','外装全体','ファスナー','ロゴ周り'];
@@ -263,6 +263,8 @@ function init(){
   mkTab(all, '__over', '期限すぎ '+s.期限超過, true);
   if(isAdmin()){
     mkTab(all, '__need', '入力もれ '+need, true);
+    var np=DATA.items.filter(unpaid).length;
+    mkTab(all, '__pay', '未精算 '+np, np>0);
     mkTab(all, '__who', 'みんなの様子');
   }
 
@@ -309,10 +311,13 @@ function init(){
     if(n>=7) st7++; else if(n>=5) st5++; else if(n>=3) st3++;
   });
 
+  var upN=0, upSum=0;
+  DATA.items.forEach(function(x){ if(unpaid(x)){ upN++; upSum+=payOf(x).left; } });
   if(canMoney()){
     $('strip').innerHTML=
       box('今月の利益（'+s.今月件数+'点）',yen(s.今月利益)+'円',s.今月利益<0?'neg':'pos')+
       box('これまでの利益（'+n0(s.売却件数)+'点）',yen(total)+'円',total<0?'neg':'pos')+
+      box('未精算（'+upN+'点）',yen(upSum)+'円',upSum>0?'neg':'')+
       box('作業まち／確認まち',s.未割当+' / '+s.要検品+'件',(s.未割当||s.要検品)?'neg':'')+
       box('期限すぎ／あと1日',s.期限超過+' / '+s.期限間近+'件',s.期限超過?'neg':'');
   }else{
@@ -416,6 +421,7 @@ function applyFold(){
   if(folded){
     var name = fStatus==='__over' ? '期限すぎ'
       : fStatus==='__need' ? '入力もれ'
+      : fStatus==='__pay' ? '未精算'
       : fStatus==='__who' ? 'みんなの様子'
       : (fStatus ? lb(fStatus) : 'すべて');
     var who=$('fWho').value;
@@ -483,6 +489,7 @@ function render(){
   var list=DATA.items.filter(function(it){
     if(fStatus==='__over'){ var d=overDays(it); if(d===null||d>=0) return false; }
     else if(fStatus==='__need'){ if(!gate(it).length) return false; }
+    else if(fStatus==='__pay'){ if(!unpaid(it)) return false; }
     else if(fStatus){ if(it.ステータス!==fStatus) return false; }
     else if(it.ステータス==='取消') return false;
     if(who && (it.リペア担当||'未割当')!==who) return false;
@@ -516,7 +523,7 @@ function soldCount(it){
 function tableHtml(list){
   var adm=canMoney();
   var head='<tr><th class="c1">商品</th><th>仕入れた人</th><th>状態</th><th>ランク</th><th>この状態で</th><th>登録から</th><th>リペアの人</th><th>どこにある</th><th>期限</th>'
-    +(adm?'<th>仕入れ値</th><th>予想売り値</th><th>予想利益</th><th>実際の売り値</th><th>実際の利益</th><th>実績</th>':'')
+    +(adm?'<th>仕入れ値</th><th>予想売り値</th><th>予想利益</th><th>実際の売り値</th><th>リペア取り分</th><th>仕入れ取り分</th><th>精算済み</th><th>未精算</th><th>実際の利益</th><th>実績</th>':'')
     +'<th>直す場所</th></tr>';
   var rows=list.map(function(it){
     var st=it.ステータス||'仕入済';
@@ -539,7 +546,12 @@ function tableHtml(list){
       money='<td class="num">'+(it.仕入値?yen(it.仕入値)+'円':'—')+'</td>'
         +'<td class="num">'+(it.想定売値?yen(it.想定売値)+'円':'—')+'</td>'
         +'<td class="num">'+mkTxt+'</td>'
-        +'<td class="num">'+(it.売却額?yen(it.売却額)+'円':'—')+'</td>'
+        +'<td class="num">'+(it.売却額?yen(it.売却額)+'円':'—')+'</td>';
+      var py=payOf(it);
+      money+='<td class="num">'+(py.sold||has(it.リペア取り分)?yen(py.rep)+'円':'—')+'</td>'
+        +'<td class="num">'+(py.sold||has(it.仕入れ取り分)?yen(py.buy)+'円':'—')+'</td>'
+        +'<td class="num">'+(py.paid?yen(py.paid)+'円':'—')+'</td>'
+        +'<td class="num">'+(py.sold&&py.total>0?(py.left>0?'<span style="color:#bc4529;font-weight:700">'+yen(py.left)+'円</span>':'<span style="color:#0f6b53">済み</span>'):'—')+'</td>'
         +'<td class="num">'+rkTxt+'</td>';
       var sc=soldCount(it);
       money+='<td class="num">'+(sc?('<span style="color:#0f6b53;font-weight:700">'+sc+'件</span>'):'はじめて')+'</td>';
@@ -607,6 +619,10 @@ function card(it){
     else if(d<=1){ tags+='<span class="tag amb">残り'+d+'日</span>'; }
     else { tags+='<span class="tag">残り'+d+'日</span>'; }
   }
+  if(canMoney()&&it.ステータス==='売却済'){
+    var py=payOf(it);
+    if(py.total>0) tags+= py.left>0 ? '<span class="tag red">未精算 '+yen(py.left)+'円</span>' : '<span class="tag" style="background:#e6f2ec;color:#0f6b53;font-weight:700">精算済み</span>';
+  }
   var g=gate(it);
   if(g.length) tags+='<span class="tag red">不足'+g.length+'</span>';
   var m;
@@ -618,7 +634,7 @@ function card(it){
       +'<i>'+yen(it.売却額)+'</i>円'
       +(gap!==null?'（'+(gap>=0?'+':'')+yen(gap)+'）':'')
       +'　利益 <span class="'+(n0(it.利益)<0?'r':'g')+'">'+yen(it.利益)+'</span>円'
-      +(n0(it.担当報酬)?'（報酬 '+yen(it.担当報酬)+'）':'');
+      +(payOf(it).total?'（リペア '+yen(payOf(it).rep)+'／仕入れ '+yen(payOf(it).buy)+'）':'');
   }else{
     var mk=n0(it.想定売値)-n0(it.仕入値)-n0(it.材料費);
     m='仕入 <i>'+yen(it.仕入値||0)+'</i>円'+(it.想定売値?'　見込み <span class="'+(mk<0?'r':'g')+'">'+yen(mk)+'</span>円':'');
@@ -750,7 +766,7 @@ function showStage(){
     els[i].style.display = st>=Number(els[i].getAttribute('data-from'))?'block':'none';
   }
   if(!canMoney()){
-    ['grpMoney','grpBuy','grpSell','capBox','recBox'].forEach(function(id){
+    ['grpMoney','grpBuy','grpSell','grpPay','capBox','recBox'].forEach(function(id){
       var e=$(id); if(e) e.style.display='none';
     });
   }
@@ -1133,14 +1149,62 @@ function calc(){
   capFrom(null);
   if($('i_売却額').value){
     var before=g('売却額')-g('仕入値')-g('材料費')-g('手数料')-g('送料');
-    var rw=$('i_リペア担当').value ? reward(before) : 0;
-    $('hosyu').textContent=yen(rw)+'円';
-    $('rieki').textContent=yen(before-rw)+'円';
-    $('rieki').style.color = (before-rw)<0?'#b4472e':'#2f5d50';
+    var auto=$('i_リペア担当').value ? reward(before) : 0;
+    $('i_リペア取り分').placeholder='自動 '+yen(auto);
+    var rw=$('i_リペア取り分').value!=='' ? g('リペア取り分') : auto;
+    var autoB=$('i_仕入れ担当').value ? rewardBuy(before) : 0;
+    $('i_仕入れ取り分').placeholder='自動 '+yen(autoB);
+    var bw=$('i_仕入れ取り分').value!=='' ? g('仕入れ取り分') : autoB;
+    $('hosyu').textContent=yen(rw+bw)+'円';
+    $('rieki').textContent=yen(before-rw-bw)+'円';
+    $('rieki').style.color = (before-rw-bw)<0?'#b4472e':'#2f5d50';
+    var paid=g('リペア精算済')+g('仕入れ精算済'), left=rw+bw-paid;
+    $('payRep').textContent='取り分 '+yen(rw)+'円　残り '+yen(rw-g('リペア精算済'))+'円';
+    $('payBuy').textContent='取り分 '+yen(bw)+'円　残り '+yen(bw-g('仕入れ精算済'))+'円';
+    $('payLeft').textContent = (rw+bw)<=0 ? '—' : (left>0 ? yen(left)+'円' : (left<0 ? '払いすぎ '+yen(-left)+'円' : '精算済み'));
+    $('payLeft').style.color = left>0?'#b4472e':'#2f5d50';
   }else{
+    $('i_リペア取り分').placeholder='売れたら自動で出ます';
+    $('i_仕入れ取り分').placeholder='売れたら自動で出ます';
     $('hosyu').textContent='—';
     $('rieki').textContent='—'; $('rieki').style.color='#1d1d1a';
+    $('payRep').textContent=''; $('payBuy').textContent='';
+    $('payLeft').textContent='—'; $('payLeft').style.color='#1d1d1a';
   }
+  $('payRepWho').textContent=$('i_リペア担当').value||'未設定';
+  $('payBuyWho').textContent=$('i_仕入れ担当').value||'未設定';
+}
+/* ===== 取り分と精算 =====
+   リペア取り分が空なら設定シートの報酬ルールで自動計算。入っていればその金額を使う */
+function has(v){ return v!==''&&v!==null&&v!==undefined; }
+function payOf(it){
+  var sold = n0(it.売却額)>0;
+  var before = n0(it.売却額)-n0(it.仕入値)-n0(it.材料費)-n0(it.手数料)-n0(it.送料);
+  var rep = has(it.リペア取り分) ? n0(it.リペア取り分)
+          : (sold ? (has(it.担当報酬) ? n0(it.担当報酬) : (it.リペア担当?reward(before):0)) : 0);
+  var buy = has(it.仕入れ取り分) ? n0(it.仕入れ取り分)
+          : (sold&&it.仕入れ担当 ? rewardBuy(before) : 0);
+  var paid = n0(it.リペア精算済)+n0(it.仕入れ精算済);
+  return {sold:sold, before:before, rep:rep, buy:buy, total:rep+buy, paid:paid,
+          repLeft:rep-n0(it.リペア精算済), buyLeft:buy-n0(it.仕入れ精算済),
+          left:rep+buy-paid, profit:before-rep-buy};
+}
+/* 売れたのに払い終わっていないもの */
+function unpaid(it){
+  if(it.ステータス!=='売却済') return false;
+  var p=payOf(it); return p.total>0 && p.left>0;
+}
+function payAll(){
+  var p=payOf(formObj());
+  $('i_リペア精算済').value = p.rep||'';
+  $('i_仕入れ精算済').value = p.buy||'';
+  if(!$('i_精算日').value) $('i_精算日').value = DATA.today;
+  calc();
+}
+/* 仕入れした人の取り分。送料などを引いた利益の20%（設定シートに「仕入れ報酬値」があればそちら） */
+function rewardBuy(before){
+  var r=Math.round(before*(n0(DATA.config.仕入れ報酬値)||20)/100);
+  return r>0?r:0;
 }
 function reward(before){
   var c=DATA.config;
