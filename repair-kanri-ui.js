@@ -26,5 +26,19 @@
     el.onerror=go;
     document.body.appendChild(el);
   }
-  go();
+  /* GitHub の最新の版（コミット）を調べて、その版のファイルを直接読む。
+     jsDelivr の @main は古いファイルを配り続けることがあるため。調べられなければ今まで通り @main から */
+  var started=false;
+  function start(sha){
+    if(started) return; started=true;
+    if(sha) srcs.unshift('https://cdn.jsdelivr.net/gh/toasovieunei888-bot/finbook-assets@'+sha+'/repair-kanri.js');
+    go();
+  }
+  setTimeout(function(){ start(null); }, 3000);
+  try{
+    fetch('https://api.github.com/repos/toasovieunei888-bot/finbook-assets/commits/main',{headers:{Accept:'application/vnd.github.sha'},cache:'no-store'})
+      .then(function(r){ return r.ok ? r.text() : ''; })
+      .then(function(t){ t=String(t||'').trim(); start(/^[0-9a-f]{40}$/.test(t) ? t : null); })
+      .catch(function(){ start(null); });
+  }catch(e){ start(null); }
 })();
