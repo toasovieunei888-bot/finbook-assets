@@ -628,6 +628,7 @@ function card(it){
   }
   if(canMoney()&&it.ステータス==='売却済'){
     var py=payOf(it);
+    if(py.buy<0) tags+='<span class="tag amb">仕入れ担当の振込から '+yen(py.buy)+'円</span>';
     if(py.total>0) tags+= py.left>0 ? '<span class="tag red">未精算 '+yen(py.left)+'円</span>' : '<span class="tag" style="background:#e6f2ec;color:#0f6b53;font-weight:700">精算済み</span>';
   }
   var g=gate(it);
@@ -1218,8 +1219,10 @@ function payAll(){
   if(!$('i_精算日').value) $('i_精算日').value = DATA.today;
   calc();
 }
-/* 仕入れした人の取り分。送料などを引いた利益の20%（設定シートに「仕入れ報酬値」があればそちら） */
+/* 仕入れした人の取り分。送料などを引いた利益の20%（設定シートに「仕入れ報酬値」があればそちら）
+   利益がマイナスのときは、マイナス全額を仕入れした人が負担する（その月の振込から差し引く。リペアした人は0円） */
 function rewardBuy(before){
+  if(before<0) return Math.round(before);
   var r=Math.round(before*(n0(DATA.config.仕入れ報酬値)||20)/100);
   return r>0?r:0;
 }
