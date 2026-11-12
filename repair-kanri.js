@@ -9,9 +9,11 @@ var RANK=['S　新品同様','A　ほぼキレイ','B　使用感あり','C　�
 var F=['ブランド','型','商品名','素材','状態ランク','症状','所在','登録日','状態変更日','査定先','査定額','仕入れ担当','仕入先','仕入日','仕入値','想定売値',
   'リペア担当','着手日','期限日','材料費','検品者','検品日','差戻回数','差戻理由',
   '売却先','売却日','売却額','手数料','送料','ステータス','備考',
-  'リペア取り分','仕入れ取り分','リペア精算済','仕入れ精算済','精算日','資金'];
+  'リペア取り分','仕入れ取り分','リペア精算済','仕入れ精算済','精算日','資金','資金取り分','資金精算済'];
 /* 資金を出した人の選択肢。増やすときはここに名前を足す */
 var FUNDERS=['はち','高下','内場'];
+/* この名前が資金を出したときは取り分なし（はちの50%のまま） */
+var FUND_SELF=['はち','はーち'];
 
 var BEFORE=['前','後ろ','横','逆の横','角','逆の角','取っ手','取っ手のアップ','中身','ロゴ','ファスナーの金具','シリアル'];
 var PARTS=['持ち手','コバ','内装','金具','底・角','外装全体','ファスナー','ロゴ周り'];
@@ -526,7 +528,7 @@ function soldCount(it){
 function tableHtml(list){
   var adm=canMoney();
   var head='<tr><th class="c1">商品</th><th>仕入れた人</th><th>状態</th><th>ランク</th><th>この状態で</th><th>登録から</th><th>リペアの人</th><th>どこにある</th><th>期限</th>'
-    +(adm?'<th>資金</th><th>仕入れ値</th><th>予想売り値</th><th>予想利益</th><th>実際の売り値</th><th>リペア取り分</th><th>仕入れ取り分</th><th>精算済み</th><th>未精算</th><th>実際の利益</th><th>実績</th>':'')
+    +(adm?'<th>資金</th><th>仕入れ値</th><th>予想売り値</th><th>予想利益</th><th>実際の売り値</th><th>リペア取り分</th><th>仕入れ取り分</th><th>資金取り分</th><th>精算済み</th><th>未精算</th><th>実際の利益</th><th>実績</th>':'')
     +'<th>直す場所</th></tr>';
   var rows=list.map(function(it){
     var st=it.ステータス||'仕入済';
@@ -554,6 +556,7 @@ function tableHtml(list){
       var py=payOf(it);
       money+='<td class="num">'+(py.sold||has(it.リペア取り分)?yen(py.rep)+'円':'—')+'</td>'
         +'<td class="num">'+(py.sold||has(it.仕入れ取り分)?yen(py.buy)+'円':'—')+'</td>'
+        +'<td class="num">'+(py.fund?yen(py.fund)+'円':'—')+'</td>'
         +'<td class="num">'+(py.paid?yen(py.paid)+'円':'—')+'</td>'
         +'<td class="num">'+(py.sold&&py.total>0?(py.left>0?'<span style="color:#bc4529;font-weight:700">'+yen(py.left)+'円</span>':'<span style="color:#0f6b53">済み</span>'):'—')+'</td>'
         +'<td class="num">'+rkTxt+'</td>';
@@ -638,7 +641,7 @@ function card(it){
       +'<i>'+yen(it.売却額)+'</i>円'
       +(gap!==null?'（'+(gap>=0?'+':'')+yen(gap)+'）':'')
       +'　利益 <span class="'+(n0(it.利益)<0?'r':'g')+'">'+yen(it.利益)+'</span>円'
-      +(payOf(it).total?'（リペア '+yen(payOf(it).rep)+'／仕入れ '+yen(payOf(it).buy)+'）':'');
+      +(payOf(it).total?'（リペア '+yen(payOf(it).rep)+'／仕入れ '+yen(payOf(it).buy)+(payOf(it).fund?'／資金 '+yen(payOf(it).fund):'')+'）':'');
   }else{
     var mk=n0(it.想定売値)-n0(it.仕入値)-n0(it.材料費);
     m='仕入 <i>'+yen(it.仕入値||0)+'</i>円'+(it.想定売値?'　見込み <span class="'+(mk<0?'r':'g')+'">'+yen(mk)+'</span>円':'');
@@ -1159,24 +1162,31 @@ function calc(){
     var autoB=$('i_仕入れ担当').value ? rewardBuy(before) : 0;
     $('i_仕入れ取り分').placeholder='自動 '+yen(autoB);
     var bw=$('i_仕入れ取り分').value!=='' ? g('仕入れ取り分') : autoB;
-    $('hosyu').textContent=yen(rw+bw)+'円';
-    $('rieki').textContent=yen(before-rw-bw)+'円';
-    $('rieki').style.color = (before-rw-bw)<0?'#b4472e':'#2f5d50';
-    var paid=g('リペア精算済')+g('仕入れ精算済'), left=rw+bw-paid;
+    var autoF=rewardFund(before, $('i_資金').value);
+    $('i_資金取り分').placeholder=isFundSelf($('i_資金').value)?'はちの資金なので0円':'自動 '+yen(autoF);
+    var fw=$('i_資金取り分').value!=='' ? g('資金取り分') : autoF;
+    $('hosyu').textContent=yen(rw+bw+fw)+'円';
+    $('rieki').textContent=yen(before-rw-bw-fw)+'円';
+    $('rieki').style.color = (before-rw-bw-fw)<0?'#b4472e':'#2f5d50';
+    var paid=g('リペア精算済')+g('仕入れ精算済')+g('資金精算済'), left=rw+bw+fw-paid;
     $('payRep').textContent='取り分 '+yen(rw)+'円　残り '+yen(rw-g('リペア精算済'))+'円';
     $('payBuy').textContent='取り分 '+yen(bw)+'円　残り '+yen(bw-g('仕入れ精算済'))+'円';
-    $('payLeft').textContent = (rw+bw)<=0 ? '—' : (left>0 ? yen(left)+'円' : (left<0 ? '払いすぎ '+yen(-left)+'円' : '精算済み'));
+    $('payFund').textContent='取り分 '+yen(fw)+'円　残り '+yen(fw-g('資金精算済'))+'円';
+    $('payLeft').textContent = (rw+bw+fw)<=0 ? '—' : (left>0 ? yen(left)+'円' : (left<0 ? '払いすぎ '+yen(-left)+'円' : '精算済み'));
     $('payLeft').style.color = left>0?'#b4472e':'#2f5d50';
   }else{
     $('i_リペア取り分').placeholder='売れたら自動で出ます';
     $('i_仕入れ取り分').placeholder='売れたら自動で出ます';
+    $('i_資金取り分').placeholder='売れたら自動で出ます';
     $('hosyu').textContent='—';
     $('rieki').textContent='—'; $('rieki').style.color='#1d1d1a';
-    $('payRep').textContent=''; $('payBuy').textContent='';
+    $('payRep').textContent=''; $('payBuy').textContent=''; $('payFund').textContent='';
     $('payLeft').textContent='—'; $('payLeft').style.color='#1d1d1a';
   }
   $('payRepWho').textContent=$('i_リペア担当').value||'未設定';
   $('payBuyWho').textContent=$('i_仕入れ担当').value||'未設定';
+  $('payFundWho').textContent=$('i_資金').value||'未設定';
+  $('payFundBox').style.display = ($('i_資金').value&&!isFundSelf($('i_資金').value))||g('資金取り分')||g('資金精算済') ? '' : 'none';
 }
 /* ===== 取り分と精算 =====
    リペア取り分が空なら設定シートの報酬ルールで自動計算。入っていればその金額を使う */
@@ -1188,10 +1198,12 @@ function payOf(it){
           : (sold ? (has(it.担当報酬) ? n0(it.担当報酬) : (it.リペア担当?reward(before):0)) : 0);
   var buy = has(it.仕入れ取り分) ? n0(it.仕入れ取り分)
           : (sold&&it.仕入れ担当 ? rewardBuy(before) : 0);
-  var paid = n0(it.リペア精算済)+n0(it.仕入れ精算済);
-  return {sold:sold, before:before, rep:rep, buy:buy, total:rep+buy, paid:paid,
-          repLeft:rep-n0(it.リペア精算済), buyLeft:buy-n0(it.仕入れ精算済),
-          left:rep+buy-paid, profit:before-rep-buy};
+  var fund = has(it.資金取り分) ? n0(it.資金取り分)
+          : (sold ? rewardFund(before, it.資金) : 0);
+  var paid = n0(it.リペア精算済)+n0(it.仕入れ精算済)+n0(it.資金精算済);
+  return {sold:sold, before:before, rep:rep, buy:buy, fund:fund, total:rep+buy+fund, paid:paid,
+          repLeft:rep-n0(it.リペア精算済), buyLeft:buy-n0(it.仕入れ精算済), fundLeft:fund-n0(it.資金精算済),
+          left:rep+buy+fund-paid, profit:before-rep-buy-fund};
 }
 /* 売れたのに払い終わっていないもの */
 function unpaid(it){
@@ -1202,12 +1214,20 @@ function payAll(){
   var p=payOf(formObj());
   $('i_リペア精算済').value = p.rep||'';
   $('i_仕入れ精算済').value = p.buy||'';
+  $('i_資金精算済').value = p.fund||'';
   if(!$('i_精算日').value) $('i_精算日').value = DATA.today;
   calc();
 }
 /* 仕入れした人の取り分。送料などを引いた利益の20%（設定シートに「仕入れ報酬値」があればそちら） */
 function rewardBuy(before){
   var r=Math.round(before*(n0(DATA.config.仕入れ報酬値)||20)/100);
+  return r>0?r:0;
+}
+/* 資金の取り分。はち以外が資金を出したら、利益の20%（はちの50%の中から出す）。設定シートに「資金報酬値」があればそちら */
+function isFundSelf(name){ return !name || FUND_SELF.indexOf(String(name).trim())>=0; }
+function rewardFund(before, name){
+  if(isFundSelf(name)) return 0;
+  var r=Math.round(before*(n0(DATA.config.資金報酬値)||20)/100);
   return r>0?r:0;
 }
 function reward(before){
@@ -1310,7 +1330,7 @@ setTimeout(function(){
 }, 800);
 
 $('form').addEventListener('input', updateWarn);
-$('form').addEventListener('change', function(){ updateWarn(); updateRec(); drawManual(); });
+$('form').addEventListener('change', function(){ calc(); updateWarn(); updateRec(); drawManual(); });
 $('fWho').onchange=render;
 function start(){ load(); }
 openGate();
